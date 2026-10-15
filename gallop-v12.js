@@ -38,7 +38,11 @@ function editBelly(g){
   const center=1-smoothstep(.13,.245,x),vert=smoothstep(.43,.69,y)*(1-smoothstep(1.03,1.20,y));
   const fore=smoothstep(-2.98,-2.63,z)*(1-smoothstep(-2.35,-2.16,z));
   const hind=smoothstep(-3.84,-3.53,z)*(1-smoothstep(-3.04,-2.78,z));
-  const strength=.98*center*vert*Math.max(fore,hind);
+  // V13.4: the broad V12 abdominal mask reached the hind stifle/hock skin.
+  // Keep the original fore-abdomen coverage while limiting the rear mask
+  // to the central abdominal strip; never repaint actual hind-leg vertices.
+  const hindCore=1-smoothstep(.04,.10,x);
+  const strength=.98*vert*Math.max(center*fore,hindCore*hind);
   if(strength<.015)continue;
   let idx=i*4,ti=-1,weak=0;
   for(let k=0;k<4;k++){if(joints[idx+k]===torso)ti=k;if(weights[idx+k]<weights[idx+weak])weak=k;}
@@ -79,7 +83,7 @@ function install(){
  const h=document.querySelector('#header h1');if(h)h.textContent='HORSE RANCH V12 · 네 다리 및 복부 개선';
  const sub=document.getElementById('subtitle');if(sub)sub.textContent='Gallop: 앞다리·뒷다리 독립 동작 / 복부 스킨 가중치 보정 / 몸통 주기 개선 · 임시 19본 리그 개선판';
  const note=document.getElementById('note');if(note)note.textContent='V12 새 Gallop 기본 적용 · Walk/Trot/Canter 원본 키 유지 · 원본 Blender 456본은 별도 복구 대상';
- window.__horseGaitV12={clip:CLIP_NAME,updatedChannels:found.size,samples:SAMPLES,belly:belly,walkTrotCanterUnmodified:true};
+ window.__horseGaitV12={clip:CLIP_NAME,updatedChannels:found.size,samples:SAMPLES,belly:belly,walkTrotCanterUnmodified:true,hindRegionProtectedV134:true};
 }
 let checks=0;const poll=setInterval(()=>{
  if(!window.__viewerReady){if(++checks>700){clearInterval(poll);window.__horseV12Error='Base viewer loading timeout';}return;}
