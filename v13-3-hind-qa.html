@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HORSE RANCH · V13.3 뒷다리 스킨 비교 검수</title>
+<style>
+:root{font:14px/1.48 system-ui,Segoe UI,sans-serif;color-scheme:dark}*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#08121b;color:#eef3f9}
+header{display:flex;align-items:center;flex-wrap:wrap;gap:16px;padding:14px 20px;background:#142533;border-bottom:1px solid #354f61}h1{font-size:18px;margin:0 0 5px;color:#ffe0b4}p{margin:0;color:#afc4cf;font-size:12px}
+.controls{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-left:auto}button,select,input{font:inherit}button,select{border:1px solid #66859c;border-radius:7px;background:#234254;color:#fff;padding:8px 11px}button{cursor:pointer}button[disabled]{opacity:.38;cursor:not-allowed}.secondary{background:#333e47}.controls label{display:flex;align-items:center;gap:7px;color:#c7dae4;font-size:12px}input[type=range]{width:95px}#status{padding:9px 18px;background:#192d35;color:#c3edf0;border-bottom:1px solid #365162;min-height:41px}main{position:relative;height:calc(100% - 160px)}iframe{display:block;width:100%;height:100%;border:0}aside{position:absolute;left:12px;bottom:12px;max-width:min(680px,calc(100% - 24px));max-height:34%;overflow:auto;white-space:pre-wrap;background:rgba(7,20,30,.92);border:1px solid #516774;border-radius:8px;padding:12px;font:12px/1.5 ui-monospace,Consolas,monospace;pointer-events:none}#warning{color:#ffcbab}a{color:#c2e9ff}
+@media (max-width:800px){header{padding:12px}.controls{margin-left:0}main{height:calc(100% - 240px)}aside{max-height:30%}}
+</style></head><body>
+<header>
+ <div><h1>HORSE RANCH · V13.3 뒷다리 검수</h1><p>기존 V13.2 모델 그대로 사용 · 스킨 가중치의 국소 불연속 후보만 선택적으로 수정 · 본/애니메이션 원본 보존</p></div>
+ <div class="controls">
+  <label>대상 <select id="side"><option value="both">좌우 뒷다리</option><option value="R">오른쪽</option><option value="L">왼쪽</option></select></label>
+  <label>보정 강도 <input type="range" id="power" min="0" max="100" step="5" value="55"><output id="power-label">55%</output></label>
+  <button disabled id="apply">V13.3 후보 적용</button><button disabled class="secondary" id="reset">V13.2 원본 복구</button>
+  <button disabled class="secondary" id="compare">Gallop V13.1↔V13.2 비교</button><button id="report">진단 복사</button>
+ </div>
+</header>
+<div id="status" aria-live="polite">GitHub 저장소의 기존 3D 경주마 모델을 불러오는 중…</div>
+<main><iframe id="horse" title="기존 HORSE RANCH 3D 모델 — V13.3 스킨 교정 실험" src="./legacy-v7.html"></iframe><aside id="diag">원본 GLB/메쉬가 로드되면 뒷다리 스킨과 리그 정보를 표시합니다.
+
+※ 원본 456본 Blender 리그가 아닌 기존 19본 웹 모델에 대한 검수 도구입니다.
+※ 본 위치·Rest Pose·Inverse Bind Matrix는 임의 추정하여 수정하지 않습니다.</aside></main>
+<script>
+'use strict';
+const frame=document.getElementById('horse'),status=document.getElementById('status'),diag=document.getElementById('diag');
+const btnApply=document.getElementById('apply'),btnReset=document.getElementById('reset'),btnCompare=document.getElementById('compare');
+const side=document.getElementById('side'),power=document.getElementById('power');
+const powerLabel=document.getElementById('power-label');power.oninput=()=>{powerLabel.textContent=power.value+'%'};
+const setStatus=(s,err=false)=>{status.textContent=s;status.style.color=err?'#ffbea6':'#c3edf0';};
+let active=false,loaded=false,clipIndex=0,lastResult=null;
+const wait=(ms)=>new Promise(ok=>setTimeout(ok,ms));
+function attach(doc,src){return new Promise((resolve,reject)=>{const s=doc.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(Error('Cannot load '+src));doc.body.appendChild(s);});}
+function child(){return frame.contentWindow;}
+function showDetails(){try{const g=child().__horseHindV13_3;if(g?.ready)diag.textContent=JSON.stringify({base:'V13.2',candidateState:g.current,diagnostics:g.diagnostics,lastResult},null,2);}catch(e){diag.textContent='Diagnose view: '+e.message}}
+async function initialize(){
+ try{
+  const doc=frame.contentDocument;if(!doc)throw Error('동일 출처의 기존 3D 페이지에 접근할 수 없습니다.');
+  for(const s of ['./gallop-v12.js','./gallop-v13-1.js','./gallop-v13-2.js'])await attach(doc,s);
+  const patch=doc.createElement('script');patch.textContent=document.getElementById('embedded-hind-code').textContent;doc.body.appendChild(patch);
+  for(let i=0;i<300;i++){
+   const w=child();if(w.__horseHindError||w.__horseV13_2Error||w.__horseV13Error||w.__horseV12Error)throw Error(w.__horseHindError||w.__horseV13_2Error||w.__horseV13Error||w.__horseV12Error);
+   if(w.__horseHindV13_3?.ready){loaded=true;[btnApply,btnReset,btnCompare].forEach(b=>b.disabled=false);setStatus('원본 V13.2 로드 완료 · 보정은 자동 적용되지 않습니다. [V13.3 후보 적용]을 누른 뒤, 확대·0.25배속으로 원본과 비교하세요.');showDetails();return;}
+   await wait(150);
+  }
+  throw Error('3D 모델 초기화 시간이 초과되었습니다.');
+ }catch(e){setStatus('검수본 초기화 실패: '+e.message,true);diag.textContent='오류: '+e.stack;}
+}
+frame.addEventListener('load',initialize,{once:true});
+btnApply.onclick=()=>{if(!loaded)return;try{
+ const val=child().__horseHindV13_3.apply(side.value,Number(power.value)/100);lastResult=val;showDetails();
+ if(val.state==='candidate')setStatus('V13.3 후보 적용: '+val.stats.changed+'개 정점의 뒷다리 스킨 가중치만 국소 보정 / 앞다리·복부·애니메이션은 보존. 시각 품질은 아직 검증이 필요합니다.');
+ else setStatus('검출된 불연속 후보가 없어 V13.2 원본을 유지합니다.');
+ }catch(e){setStatus('교정 적용 실패, 원본 유지: '+e.message,true);}};
+btnReset.onclick=()=>{if(!loaded)return;try{lastResult=child().__horseHindV13_3.reset();showDetails();setStatus('V13.2 스킨 원본으로 복구했습니다. 기존 Gallop과 앞다리·복부 그대로 유지.');}catch(e){setStatus('원본 복구 오류: '+e.message,true);}};
+btnCompare.onclick=()=>{if(!loaded)return;try{
+ const w=child(),g=w.object3d||w.eval('object3d');const names=['Gallop_V13_1_COHERENT','Gallop_V13_2_HIND_BOUNDED'];
+ clipIndex=1-clipIndex;const target=g.animations.findIndex(x=>x.name===names[clipIndex]);if(target<0)throw Error('비교할 클립이 없습니다.');
+ const sel=frame.contentDocument.getElementById('animations');sel.value=String(target);sel.dispatchEvent(new Event('change'));
+ setStatus('기존 애니메이션 비교: '+names[clipIndex]+' · 현재 스킨 상태: '+child().__horseHindV13_3.current);
+ }catch(e){setStatus('애니메이션 비교 오류: '+e.message,true);}};
+document.getElementById('report').onclick=async()=>{try{
+ const content=diag.textContent;await navigator.clipboard.writeText(content);setStatus('진단 내용을 복사했습니다.');
+ }catch(e){setStatus('진단 내용을 복사할 수 없습니다. 아래 진단 영역의 글자를 확인하세요.',true);}};
+</script><script id="embedded-hind-code" type="text/plain">
+/* HORSE RANCH V13.3 QA — non-destructive, reversible HIND SKIN candidate.
+   No skeleton, bind-matrix, gait, frontend, or belly modifications.
+   This is an instrumented candidate, NOT a proven anatomical fix. */
+(function (root) {
+  'use strict';
+  const SIDES = ['R', 'L'];
+  const PARTS = ['Hip', 'Stifle', 'Hock', 'Fetlock'];
+  const FAMILY = Object.fromEntries(SIDES.map(s => [s, PARTS.map(p => 'Hind' + s + '_' + p)]));
+  const distance = (p, a, b) => Math.hypot(p[a*3]-p[b*3], p[a*3+1]-p[b*3+1], p[a*3+2]-p[b*3+2]);
+  const clamp = (x, l, h) => Math.min(h, Math.max(l, x));
+  function analyzeAndBuild(input, options = {}) {
+    const {positions, weights, joints, indices, jointNames} = input;
+    const n = positions.length / 3;
+    if(!Number.isInteger(n) || n < 3 || weights.length !== n*4 || joints.length !== n*4) throw Error('Skin accessor dimensions differ');
+    if(!Array.isArray(jointNames)) throw Error('Skin joint names unavailable');
+    const selected = options.side === 'R' || options.side === 'L' ? [options.side] : SIDES;
+    const strength = clamp(Number(options.strength ?? .55), 0, 1);
+    const familyIds = Object.fromEntries(SIDES.map(s => [s, FAMILY[s].map(x => jointNames.indexOf(x))]));
+    for(const s of selected) if(familyIds[s].some(k => k < 0)) throw Error('Missing '+s+' hind skin joint: '+FAMILY[s].filter((x,i)=>familyIds[s][i]<0).join(', '));
+    const outJ = new joints.constructor(joints), outW = new weights.constructor(weights);
+    const idMap = Object.fromEntries(SIDES.map(s=>[s,new Map(familyIds[s].map((id,k)=>[id,k]))]));
+    const sideOf = new Array(n).fill(null), mixed = new Uint8Array(n);
+    const localWeights = Array.from({length:n},()=>null);
+    const tallies={R:{eligible:0, changed:0, maxDelta:0},L:{eligible:0, changed:0, maxDelta:0}};
+    for(let i=0;i<n;i++){
+      let r=0,l=0,external=0,countR=0,countL=0;
+      for(let k=0;k<4;k++){
+        const id=joints[4*i+k],w=weights[4*i+k];
+        if(!Number.isFinite(w) || w < 0) throw Error('Invalid base weights');
+        if(idMap.R.has(id)){r+=w;if(w>.005)countR++;}
+        else if(idMap.L.has(id)){l+=w;if(w>.005)countL++;}
+        else external+=w;
+      }
+      // Avoid belly/pelvis, forelegs, left-right overlaps, and one-bone rigid regions.
+      if(external > .01 || Math.min(r,l) > .01) continue;
+      const s=r>.99?'R':l>.99?'L':null;
+      if(!s || (s==='R'?countR:countL)<2)continue;
+      sideOf[i]=s;mixed[i]=1;tallies[s].eligible++;
+      const v=new Float64Array(4);
+      for(let k=0;k<4;k++){
+        const slot=idMap[s].get(joints[4*i+k]); if(slot!==undefined)v[slot]+=weights[4*i+k];
+      }
+      localWeights[i]=v;
+    }
+    const neighbors=Array.from({length:n},()=>new Set());
+    const add=(a,b)=>{if(a===b||a<0||b<0||a>=n||b>=n)return;neighbors[a].add(b);neighbors[b].add(a);};
+    if(!indices || !indices.length)throw Error('Indexed body topology unavailable: cancel safe correction');
+    if(indices.length%3!==0)throw Error('Non-triangle topology: cancel correction');
+    for(let k=0;k<indices.length;k+=3){const a=indices[k],b=indices[k+1],c=indices[k+2];add(a,b);add(b,c);add(c,a);}
+    const updates=[];
+    for(let i=0;i<n;i++){
+      const s=sideOf[i];if(!s || !selected.includes(s))continue;
+      const ns=[...neighbors[i]].filter(j=>sideOf[j]===s && distance(positions,i,j)>1e-8);
+      if(ns.length<3)continue;
+      const lengths=ns.map(j=>distance(positions,i,j)).sort((a,b)=>a-b);
+      const typical=lengths[Math.floor(lengths.length/2)];
+      // A seam/nonlocal triangle can connect distant vertices; ignore it.
+      const near=ns.filter(j=>distance(positions,i,j)<Math.max(typical*2.25,1e-5));
+      if(near.length<3)continue;
+      const avg=new Float64Array(4);let norm=0;
+      for(const j of near){const d=distance(positions,i,j),w=1/Math.max(d,1e-4);norm+=w;
+        for(let k=0;k<4;k++)avg[k]+=localWeights[j][k]*w;
+      }
+      for(let k=0;k<4;k++)avg[k]/=norm;
+      const old=localWeights[i],delta=old.reduce((a,v,k)=>a+Math.abs(v-avg[k]),0);
+      // Only target prominent discontinuities, not all real joint transitions.
+      if(delta<=.20)continue;
+      const alpha=Math.min(.45, .45*strength*clamp((delta-.20)/.45,0,1));
+      if(alpha<=0)continue;
+      const vals=Array.from({length:4},(_,k)=>old[k]*(1-alpha)+avg[k]*alpha);
+      const sum=vals.reduce((a,b)=>a+b,0);if(!(sum>.999))continue;
+      const ids=familyIds[s];
+      updates.push({i,s,vals:vals.map(v=>v/sum),ids,delta});
+    }
+    for(const u of updates){
+      // Atomic candidate: only commit after all validation above succeeds.
+      const pairs=u.vals.map((v,k)=>({id:u.ids[k],v})).sort((a,b)=>b.v-a.v);
+      for(let k=0;k<4;k++){outJ[u.i*4+k]=pairs[k].id;outW[u.i*4+k]=pairs[k].v;}
+      tallies[u.s].changed++;tallies[u.s].maxDelta=Math.max(tallies[u.s].maxDelta,u.delta);
+    }
+    // Numerical and preservation invariants, with exact identity outside eligible hind vertices.
+    for(let i=0;i<n;i++){
+      let sum=0;for(let k=0;k<4;k++)sum+=outW[4*i+k];
+      if(Math.abs(sum-1)>1e-3)throw Error('Weights do not sum to 1: vertex '+i);
+      if(!sideOf[i] || !selected.includes(sideOf[i]))for(let k=0;k<4;k++){
+        if(outJ[4*i+k]!==joints[4*i+k] || outW[4*i+k]!==weights[4*i+k])throw Error('Non-target vertex changed');
+      }
+    }
+    return {joints:outJ,weights:outW,stats:{selected, strength, vertices:n, faces:indices.length/3, sides:tallies, changed:updates.length},metadata:{kind:'hind-only-weight-outlier-smoothing', verifiedAnatomy:false}};
+  }
+  root.HorseHindWeights={analyzeAndBuild};
+  if (typeof module==='object' && module.exports) module.exports=root.HorseHindWeights;
+  if(typeof document==='undefined')return;
+
+  // Runs inside the ORIGINAL legacy-v7.html iframe, on the same GitHub origin.
+  let ticks=0;
+  const timer=setInterval(()=>{
+    if(!root.__horseGaitV13_2?.ready){if(++ticks>650){clearInterval(timer);root.__horseHindError='V13.2 dependency timeout';}return;}
+    clearInterval(timer);
+    try{
+      if(typeof object3d==='undefined'||typeof readAccessor!=='function')throw Error('Legacy model runtime inaccessible');
+      const g=object3d;
+      const body=g.doc.meshes?.[0]?.primitives?.[0];
+      const skin=g.skins?.[0],names=skin?.joints?.map(id=>g.doc.nodes?.[id]?.name||'');
+      if(!body||!names)throw Error('Body primitive or skin not found');
+      const a=body.attributes;
+      if(a?.POSITION===undefined || a?.JOINTS_0===undefined || a?.WEIGHTS_0===undefined || body.indices===undefined)throw Error('Required mesh accessors missing');
+      const positions=readAccessor(g,a.POSITION),indices=readAccessor(g,body.indices);
+      const originalJ=readAccessor(g,a.JOINTS_0),originalW=readAccessor(g,a.WEIGHTS_0);
+      if(originalJ.length!==originalW.length)throw Error('Joint/weight length mismatch');
+      const baseJ=new originalJ.constructor(originalJ),baseW=new originalW.constructor(originalW);
+      // No arrays are changed at startup. Base: V13.2 with V12/V13.1 belly fixes.
+      function pushToViewer(j,w){
+        let count=0;const primitives=g.doc.meshes[0].primitives;
+        for(let i=0;i<primitives.length;i++){
+          const p=primitives[i];if(p.attributes?.JOINTS_0!==a.JOINTS_0||p.attributes?.WEIGHTS_0!==a.WEIGHTS_0)continue;
+          const render=g.meshes?.[0]?.[i];if(!render)continue;
+          if(!ctx2d){if(!render.vao)continue;
+            gl.bindVertexArray(render.vao);attr(render.vao,program.attr.aJoints,j,4);attr(render.vao,program.attr.aWeights,w,4);gl.bindVertexArray(null);
+          }else{render.joints=j;render.weights=w;}
+          count++;
+        }
+        if(!count)throw Error('No matching render primitive; weights were not applied');
+        return count;
+      }
+      function reset(){pushToViewer(baseJ,baseW);root.__horseHindV13_3.current='V13.2 원본';return {state:'base',primitives:'restored'};}
+      function apply(side='both',strength=.55){
+        const result=analyzeAndBuild({positions,weights:baseW,joints:baseJ,indices,jointNames:names},{side,strength});
+        if(result.stats.changed===0) return {state:'not_applied',message:'No candidate outlier vertices at current threshold',stats:result.stats};
+        const count=pushToViewer(result.joints,result.weights);
+        root.__horseHindV13_3.current='V13.3 후보';return {state:'candidate',primitives:count,stats:result.stats};
+      }
+      // Read-only bind audit: joint positions inferred from inverse bind matrices.
+      // This is *not* an anatomical correctness verdict; no joint transforms are changed.
+      function inspectBindMatrices(){
+        const accessor=g.doc.skins?.[0]?.inverseBindMatrices;
+        if(accessor===undefined)return {available:false,reason:'Inverse bind accessor not found'};
+        const ibm=readAccessor(g,accessor);
+        if(ibm.length<names.length*16)return {available:false,reason:'Inverse bind accessor length mismatch'};
+        const points={};
+        for(const s of SIDES)for(const part of PARTS){
+          const name='Hind'+s+'_'+part,idx=names.indexOf(name);
+          if(idx<0)continue;
+          const o=idx*16,m=ibm;
+          // Solve A * p = -t for the bind-space location of a joint origin.
+          const a=m[o],b=m[o+4],c=m[o+8],d=m[o+1],e=m[o+5],f=m[o+9],h=m[o+2],i=m[o+6],j=m[o+10];
+          const det=a*(e*j-f*i)-b*(d*j-f*h)+c*(d*i-e*h);
+          if(!Number.isFinite(det)||Math.abs(det)<1e-9){points[name]=null;continue;}
+          const x=-m[o+12],y=-m[o+13],z=-m[o+14];
+          points[name]=[
+            (x*(e*j-f*i)-b*(y*j-f*z)+c*(y*i-e*z))/det,
+            (a*(y*j-f*z)-x*(d*j-f*h)+c*(d*z-y*h))/det,
+            (a*(e*z-y*i)-b*(d*z-y*h)+x*(d*i-e*h))/det
+          ].map(v=>Number(v.toFixed(4)));
+        }
+        const lengths={};for(const s of SIDES){
+          lengths[s]={};for(let p=0;p<PARTS.length-1;p++){
+            const k1='Hind'+s+'_'+PARTS[p],k2='Hind'+s+'_'+PARTS[p+1],v=points[k1],w=points[k2];
+            lengths[s][PARTS[p]+'-'+PARTS[p+1]]=v&&w?Number(Math.hypot(v[0]-w[0],v[1]-w[1],v[2]-w[2]).toFixed(4)):null;
+          }
+        }
+        return {available:true,points,lengths,interpretation:'Joint-origin distances from GLTF inverse bind matrices; not real horse anatomical landmark verification'};
+      }
+      let bindAudit;try{bindAudit=inspectBindMatrices();}catch(e){bindAudit={available:false,reason:e.message};}
+      // Diagnostics never modify geometry, transforms, animation, or bind matrices.
+      const diagnostics={skinJoints:names,vertexCount:positions.length/3,bodyTriangles:indices.length/3,
+        primitiveCount:g.doc.meshes[0].primitives.length,
+        bindAudit,
+        comparisonClips:g.animations.map(x=>x.name).filter(s=>s.includes('Gallop')),
+        skeleton:'19-bone WEB preview; original Blender rig not restored',
+        unresolved:['joint centre / bind matrices need native source verification','edge elongation under animated skin not yet measured']};
+      root.__horseHindV13_3={ready:true,current:'V13.2 원본',diagnostics,analyze:(side='both',strength=.55)=>analyzeAndBuild({positions,weights:baseW,joints:baseJ,indices,jointNames:names},{side,strength}).stats,apply,reset};
+    }catch(e){root.__horseHindError=String(e.message||e);console.error('V13.3 QA init',e);}
+  },100);
+})(typeof window!=='undefined'?window:globalThis);
+
+</script>
+</body></html>
