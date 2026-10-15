@@ -1,0 +1,51 @@
+name: V9.1 Native Horse Source Audit (manual, no deployment)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-action-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Get original source from one-time GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p source output
+          gh release download horse-original-source --pattern '*.zip' --dir source
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          import hashlib
+          paths=list(Path("source").glob("*.zip"))
+          if len(paths)!=1:raise SystemExit("Exactly one original ZIP release asset expected")
+          with ZipFile(paths[0]) as z:
+              names=[n for n in z.namelist() if n.endswith(".blend")]
+              if len(names)!=1:raise SystemExit("Expected exactly one .blend")
+              Path("source/native.blend").write_bytes(z.read(names[0]))
+          digest=hashlib.sha256(Path("source/native.blend").read_bytes()).hexdigest()
+          assert digest=="b848037332fe62064989f250a94faa04c75e3fb21ae93f6a100f19079c1b21aa", "Original asset hash mismatch"
+          print("Original source SHA-256 verified.")
+          PY
+      - name: Install Blender on GitHub runner
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender
+          blender --version | head -n 2
+      - name: Measure original four Actions only
+        shell: bash
+        run: |
+          blender --background --factory-startup --python native-ci/audit.py -- --source "$PWD/source/native.blend" --out "$PWD/output"
+      - name: Upload audit JSON, including partial failure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: horse-original-action-160-samples
+          path: output/
+          if-no-files-found: warn
+          retention-days: 14
