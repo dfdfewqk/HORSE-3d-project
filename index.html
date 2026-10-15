@@ -1,13 +1,13 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HORSE RANCH V13.2 — 뒷다리 신장 교정</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#08121b;color:#e9eef4;font-family:system-ui,sans-serif}iframe{display:block;width:100%;height:100%;border:0}#warning{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);max-width:95%;z-index:9;background:#472d26;padding:9px 15px;border-radius:8px}</style></head><body><div id="warning" role="alert"></div><iframe id="horse" src="./legacy-v7.html" title="HORSE RANCH V13.2 경주마 3D 애니메이션"></iframe><script>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HORSE RANCH V13.3 — 뒷다리 구조 교정</title><style>html,body{margin:0;height:100%;overflow:hidden;background:#08121b;color:#e9eef4;font-family:system-ui,sans-serif}iframe{display:block;width:100%;height:100%;border:0}#warning{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);max-width:95%;z-index:9;background:#472d26;padding:9px 15px;border-radius:8px}</style></head><body><div id="warning" role="alert"></div><iframe id="horse" src="./legacy-v7.html" title="HORSE RANCH V13.2 경주마 3D 애니메이션"></iframe><script>
 (function(){const frame=document.getElementById('horse');function fail(msg){let x=document.getElementById('warning');x.style.display='block';x.textContent=msg;}
 frame.addEventListener('load',()=>{try{
  const doc=frame.contentDocument;if(!doc){fail('말 모델을 불러오지 못했습니다.');return;}
  function attach(src,callback){const s=doc.createElement('script');s.src=src;s.onload=callback||null;s.onerror=()=>fail('수정 애니메이션 로드 실패: '+src);doc.body.appendChild(s);}
- attach('./gallop-v12.js',()=>attach('./gallop-v13-1.js',()=>attach('./gallop-v13-2.js')));
+ attach('./gallop-v12.js',()=>attach('./gallop-v13-1.js',()=>attach('./gallop-v13-2.js',()=>attach('./gallop-v13-3.js'))));
  let loops=0,check=setInterval(()=>{try{
  const win=frame.contentWindow;
- if(win?.__horseGaitV13_2?.ready){clearInterval(check);return;}
- if(win?.__horseV13_2Error||win?.__horseV13Error||win?.__horseV12Error){clearInterval(check);fail('애니메이션 오류: '+(win.__horseV13_2Error||win.__horseV13Error||win.__horseV12Error));return;}
+ if(win?.__horseGaitV13_3?.ready){clearInterval(check);return;}
+ if(win?.__horseV13_3Error||win?.__horseV13_2Error||win?.__horseV13Error||win?.__horseV12Error){clearInterval(check);fail('애니메이션 오류: '+(win.__horseV13_3Error||win.__horseV13_2Error||win.__horseV13Error||win.__horseV12Error));return;}
  if(++loops>650){clearInterval(check);fail('모델 로딩이 오래 걸립니다. 새로고침 후 확인해주세요.');}
  }catch(e){clearInterval(check);fail('재생 검사 실패: '+e.message);}},120);
  }catch(e){fail('V13.2 초기화 오류: '+e.message);}});
