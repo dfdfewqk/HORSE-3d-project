@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HORSE RANCH V14 — 정지 · 걷기 · 달리기</title>
+<style>
+ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08121b}
+ iframe{width:100%;height:100%;border:0;display:block}
+ #error{display:none;position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:20;
+ max-width:90vw;background:#563630;color:#fff;padding:11px 15px;border-radius:8px;
+ font:14px/1.4 system-ui,sans-serif}
+</style>
+</head>
+<body>
+<iframe id="horse" title="HORSE RANCH 기존 3D 뷰어" src="../legacy-v7.html"></iframe>
+<div id="error" role="alert"></div>
+<script>
+(function(){
+ 'use strict';
+ const frame=document.getElementById('horse'),notice=document.getElementById('error');
+ function error(msg){notice.style.display='block';notice.textContent=msg;}
+ frame.addEventListener('load',()=>{
+  try{
+   const doc=frame.contentDocument;
+   if(!doc){error('3D 뷰어 문서 접근 오류');return;}
+   const script=doc.createElement('script');
+   // Resolve relative to THIS HTML (subfolder), not iframe legacy-v7.html.
+   script.src=new URL('./horse-gaits-runtime.js',location.href).href;
+   script.onerror=()=>error('4가지 애니메이션 코드를 읽지 못했습니다.');
+   doc.body.appendChild(script);
+   let attempt=0;
+   const watch=setInterval(()=>{
+    try{
+     const w=frame.contentWindow;
+     if(w?.__horseV14?.ready){
+      clearInterval(watch);
+      const select=doc.getElementById('animations');
+      const expected=['정지 자세','Walk','Gallop Cruise','Gallop Fast','Gallop Sprint'];
+      const seen=Array.from(select?.options||[]).map(o=>o.textContent.trim());
+      if(seen.length!==5||seen.some((v,i)=>v!==expected[i])){
+       error('동작 메뉴가 5개로 정리되지 않았습니다.');return;
+      }
+      if(w.__horseGaitV12?.belly?.corrected!==440){
+       error('기존 피부 가중치 보정 검사에 실패했습니다.');return;
+      }
+      const h=doc.querySelector('#header h1');
+      if(h)h.textContent='HORSE RANCH V14 · 정지 / Walk / Gallop';
+      const subtitle=doc.getElementById('subtitle');
+      if(subtitle)subtitle.textContent='정지 자세 · 실제 걷기 후보 · 일반 질주 · 고속 질주 · 스퍼트';
+      const hint=doc.getElementById('note');
+      if(hint)hint.textContent='19본 웹 실험 리그 · 접지와 모션 자연스러움은 시각 검증 중';
+      document.title='HORSE RANCH V14 — 5가지 자세';
+      return;
+     }
+     const problem=w?.__horseV14Error||w?.__horseV139Error||w?.__horseV138Error||
+       w?.__horseV137Error||w?.__horseV135FoldError||w?.__horseV13_2Error||
+       w?.__horseV13Error||w?.__horseV12Error;
+     if(problem){clearInterval(watch);error('애니메이션 오류: '+problem);return;}
+     if(++attempt>900){clearInterval(watch);error('3D 모델이 준비되지 않았습니다. 페이지를 새로고침해 주세요.');}
+    }catch(err){clearInterval(watch);error('뷰어 확인 오류: '+err.message);}
+   },120);
+  }catch(err){error('뷰어 시작 오류: '+err.message);}
+ });
+})();
+</script>
+</body>
+</html>
