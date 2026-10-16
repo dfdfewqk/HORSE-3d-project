@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HORSE RANCH V15 · 전신·갈기·꼬리 시험판</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#08121b}
+iframe{display:block;border:0;width:100%;height:100%}
+#notice{position:fixed;z-index:20;top:10px;left:50%;transform:translateX(-50%);max-width:95%;
+font:13px/1.5 system-ui,sans-serif;padding:9px 13px;border-radius:8px;color:white;
+background:#502a24;display:none}
+</style></head><body>
+<iframe id="viewer" src="../legacy-v7.html" title="기존 HORSE RANCH 3D 뷰어"></iframe>
+<div id="notice" role="status"></div>
+<script>
+(function(){'use strict';
+ const iframe=document.getElementById('viewer'),notice=document.getElementById('notice');
+ const show=(msg,bad=true)=>{notice.textContent=msg;notice.style.display='block';notice.style.background=bad?'#502a24':'#204b40'};
+ iframe.addEventListener('load',()=>{
+  const doc=iframe.contentDocument;
+  if(!doc){show('기존 3D 뷰어에 연결하지 못했습니다.');return;}
+  const files=['../v14-preview/horse-gaits-runtime.js','./v15-motion.js','./v15-hair.js','./v15-skin-qa.js'];
+  let index=0,loadFailed=false;
+  function attach(){
+   if(index>=files.length)return;
+   const script=doc.createElement('script');script.src=new URL(files[index],location.href).href;
+   script.onerror=()=>{loadFailed=true;show('V15 개발 스크립트를 읽지 못했습니다: '+files[index]);};
+   script.onload=()=>{index++;attach();};
+   doc.body.appendChild(script);
+  }
+  attach();
+  let checks=0;
+  const wait=setInterval(()=>{
+   const w=iframe.contentWindow;
+   if(loadFailed){clearInterval(wait);return;}
+   const problem=w?.__horseV15Error||w?.__horseV15HairError||
+    w?.__horseV14Error||w?.__horseV139Error||w?.__horseV138Error||
+    w?.__horseV137Error||w?.__horseV135FoldError||w?.__horseV13_2Error||
+    w?.__horseV13Error||w?.__horseV12Error;
+   if(problem){clearInterval(wait);show('V15 시험판 초기화 오류: '+problem);return;}
+   if(w?.__horseV15?.ready&&w?.__horseV15Hair?.ready&&w?.__horseV15SkinAudit?.run){
+    clearInterval(wait);
+    const opts=[...doc.getElementById('animations').options].map(x=>x.textContent.trim());
+    if(opts.join('|')!=='정지 자세|Walk|Gallop Cruise|Gallop Fast|Gallop Sprint'){
+     show('동작 목록 검증 실패');return;
+    }
+    if(w.__horseGaitV12?.belly?.corrected!==440){show('기존 피부 보정 확인 실패');return;}
+    const h=doc.querySelector('#header h1');
+    if(h)h.textContent='HORSE RANCH V15 · 보행·질주 및 갈기·꼬리 시험';
+    const sub=doc.getElementById('subtitle');
+    if(sub)sub.textContent='기존 3D 말 외형 보존 · 전신 균형·HairKey 털끝 지연 반응 후보';
+    const note=doc.getElementById('note');
+    if(note)note.textContent='V15 후보 · GLB 재작성 없음 · 실제 착지와 Windows GPU 시각 검증은 별도';
+    window.__horseV15=w.__horseV15;
+    window.__horseV15Hair=w.__horseV15Hair;
+    window.__horseV15SkinAudit=w.__horseV15SkinAudit;
+    if(new URLSearchParams(location.search).has('audit')){
+     show('실제 GLB 160프레임 수치 검사 진행 중…',false);
+     w.__horseV15SkinAudit.run(p=>{
+      notice.textContent='실제 GLB 피부 검사 '+Math.round(p*100)+'%';
+     }).then(result=>{
+      const k=result.versions;
+      const v15=k.V15Sprint.maxSkin;
+      show('V15 Sprint GLB CPU 검사 완료 · 앞다리 '+v15.fore.max.toFixed(4)+
+        '배, 뒷다리 '+v15.hind.max.toFixed(4)+'배 · WebGL 시각 검증과 접지는 별도',false);
+     }).catch(e=>show('피부 검사 실패: '+(e?.message||e)));
+    }
+    // A developer-only diagnostics shortcut; it does not change visible controls.
+    window.__horseV15Check=()=>({modes:opts,skinJoints:w.__horseV15.rigJoints,
+     hair:w.__horseV15Hair.segments,belly:w.__horseGaitV12.belly.corrected});
+    return;
+   }
+   if(++checks>900){clearInterval(wait);show('V15 초기화 시간이 초과됐습니다. 새로고침해 주세요.');}
+  },120);
+ });
+})();
+</script></body></html>
