@@ -3,14 +3,14 @@ html,body{margin:0;height:100%;overflow:hidden;background:#08121b;color:#e9eef4;
 iframe{display:block;width:100%;height:100%;border:0}
 #qa{position:absolute;bottom:12px;left:12px;z-index:9;background:#142635e8;border:1px solid #63829a;border-radius:10px;padding:9px 12px;font:12px system-ui;display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:94%}#qa button{background:#245c7b;border:1px solid #8bb5ce;color:white;border-radius:8px;padding:8px;cursor:pointer}#qa button:disabled{opacity:.5}
 #speedLab{position:absolute;top:10px;left:12px;z-index:10;background:#142635e8;border:1px solid #63829a;border-radius:10px;padding:9px 12px;font:13px system-ui;display:grid;gap:6px;max-width:95%}#speedLab input{width:min(270px,58vw);vertical-align:middle;accent-color:#76b7dd}#speedLab small{color:#bad0e0}#warning{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);max-width:95%;z-index:9;background:#472d26;padding:9px 15px;border-radius:8px}
-</style></head><body><div id="warning" role="alert"></div><div id="speedLab"><strong>V14 속도별 질주 · <span id="speedNum">44 km/h</span></strong><label>레이스 속도 <input id="raceSpeed" type="range" min="20" max="72" value="44"></label><span id="gaitName">모델 준비 중…</span><small>Canter / Cruise / Fast / Sprint · 실험용</small></div><div id="qa"><button id="runQA" disabled>GLB 160프레임 피부 검사</button><span id="qaState" role="status">검사 준비 중…</span></div><iframe id="horse" src="./legacy-v7.html" title="HORSE RANCH V13.9 후보 3D 애니메이션"></iframe><script>
+</style></head><body><div id="warning" role="alert"></div><div id="speedLab"><strong>V14 속도별 질주 · <span id="speedNum">44 km/h</span></strong><label>레이스 속도 <input id="raceSpeed" type="range" min="20" max="72" value="44"></label><span id="gaitName">모델 준비 중…</span><small>Canter / Cruise / Fast / Sprint · 실험용</small></div><div id="qa"><button id="runQA" disabled>V14 GLB 피부 검사</button><span id="qaState" role="status">검사 준비 중…</span></div><iframe id="horse" src="./legacy-v7.html" title="HORSE RANCH V13.9 후보 3D 애니메이션"></iframe><script>
 (function(){
  const frame=document.getElementById('horse');
  const btn=document.getElementById('runQA'),status=document.getElementById('qaState');
- btn.addEventListener('click',()=>{const checker=frame.contentWindow?.__horseSkinAudit;if(!checker?.run)return;
+ btn.addEventListener('click',()=>{const checker=frame.contentWindow?.__horseV14SkinAudit;if(!checker?.run)return;
   btn.disabled=true;checker.run(p=>status.textContent='GLB 검사 '+Math.round(p*100)+'%').then(r=>{
-   const h=r.versions.V139.maxSkin.hind,f=r.versions.V139.maxSkin.fore;
-   status.textContent='완료: 후지 '+h.max.toFixed(5)+'배 / 전지 '+f.max.toFixed(5)+'배 / 전지 1.5배 초과 '+f.above1_5+'개 · GPU/접지 미검증';btn.disabled=false;
+   const base=r.versions.V139.maxSkin,cruise=r.versions.V14Cruise.maxSkin,fast=r.versions.V14Fast.maxSkin,sprint=r.versions.V14Sprint.maxSkin;
+   status.textContent='V14 실제 GLB 검증 완료 · 후지: '+sprint.hind.max.toFixed(5)+'배 / 전지: '+sprint.fore.max.toFixed(5)+'배 / 전지 과신장 '+sprint.fore.above1_5+'개 · GPU/접지 미검증';btn.disabled=false;
   }).catch(e=>{status.textContent='검사 실패: '+(e?.message||e);btn.disabled=false;});
  });
  function fail(msg){const el=document.getElementById('warning');el.style.display='block';el.textContent=msg;}
@@ -25,7 +25,7 @@ iframe{display:block;width:100%;height:100%;border:0}
   const doc=frame.contentDocument;
   if(!doc){fail('기존 3D 모델을 불러오지 못했습니다.');return;}
   const sources=['gallop-v12.js','gallop-v13-1.js','gallop-v13-2.js',
-                 'gallop-v13-5.js','gallop-v13-7.js','gallop-v13-8.js','gallop-v13-9.js','qa-skin-v13-9.js','v14-speed-gaits.js'];
+                 'gallop-v13-5.js','gallop-v13-7.js','gallop-v13-8.js','gallop-v13-9.js','qa-skin-v13-9.js','v14-speed-gaits.js','qa-skin-v14.js'];
   function attach(i){if(i===sources.length)return;
    const s=doc.createElement('script');s.src='./'+sources[i];
    s.onload=()=>attach(i+1);
@@ -36,8 +36,8 @@ iframe{display:block;width:100%;height:100%;border:0}
   let loops=0;
   const watcher=setInterval(()=>{try{
    const win=frame.contentWindow;
-   if(win?.__horseGaitV139?.ready&&win?.__horseSkinAudit?.run&&win?.__horseV14?.ready){
-    btn.disabled=false;status.textContent='V13.5~V13.9 피부 검사 (V14 미포함)';updateSpeed();
+   if(win?.__horseGaitV139?.ready&&win?.__horseV14?.ready&&win?.__horseV14SkinAudit?.run){
+    btn.disabled=false;status.textContent='V13.5~V14 Sprint · 7개 버전 피부 검사';updateSpeed();
     clearInterval(watcher);
     if(!win.__horseGaitV12?.hindRegionProtectedV134){fail('V13.4 피부 보정 확인에 실패했습니다.');return;}
     const h=doc.querySelector('#header h1');if(h)h.textContent='HORSE RANCH V14 · 레이스 속도별 질주 실험';
