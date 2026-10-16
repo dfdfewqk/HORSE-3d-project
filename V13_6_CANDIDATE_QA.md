@@ -25,3 +25,31 @@ The deployed V13.5 hock curve has near-constant local Hock X rotation for about 
 Do not claim this candidate solves the rear-leg complaint. Keep main on V13.5 unless these checks are completed and demonstrate improvement.
 
 Research context: https://doi.org/10.1111/j.1439-0264.1983.tb01019.x ; https://vanat.ahc.umn.edu/gaits/transGallop.html ; https://pubmed.ncbi.nlm.nih.gov/23742040/ . The distal hindlimb 2014 study is stance-focused, not swing-angle calibration.
+
+## Actual embedded GLB 160-frame CPU-skin follow-up (2026-10-16)
+
+**Source:** identical deployed `legacy-v7.html` GLB on main and candidate branch: 24,314 body positions, 19 skin joints. V13.4's exact 440-vertex abdomen-weight correction was applied before evaluation. V13.1 torso and unchanged limb keys were decoded, V13.2 bounded hind curves applied, and V13.5 / V13.6 additive local X-track formulas evaluated at all 160 sample timestamps. Skin positions were reconstructed with the original inverse bind matrices. No rig, GLB, skin or existing clip was altered.
+
+**Selection for this follow-up:** 2,075 hind-dominant body vertices (hind influence >0.5, y<0.95, z<-3.10), 5,436 distinct valid body mesh triangle edges with rest length in [0.008, 0.12] model units, including both shared-geometry body primitives. This edge cohort is different from the 2,932-edge cohort described in V13.5 QA; do not compare its percentiles directly with that older cohort.
+
+| CPU mesh metric on identical 5,436 edges | V13.4 | V13.5 main | V13.6 experiment |
+|---|---:|---:|---:|
+| Maximum edge-length stretch ratio across 160 frames | 1.42118 | 1.32234 | 1.32234 |
+| 99th percentile of per-edge maximum | 1.22837 | 1.21806 | 1.21806 |
+| Edges exceeding 1.5x | 0 | 0 | 0 |
+
+For reference, the maximum 1.42118 / 1.32234 ratios reproduce the prior GLB test's approximate 1.4212 / 1.3223 values. This is CPU-derived deformation evidence, **not** a rendered visual acceptance test.
+
+**Distal rear-hoof proxy:** A genuine GLB skin vertex heavily influenced by each Hind_Fetlock (>0.8), selected as the lowest rest-position vertex in the rear area (R vertex index 890, L index 3696; both rest y approx -0.00247). It is a **skin-vertex proxy**, not a dynamically derived hoof-ground contact point.
+
+| Computed quantity | V13.5 | V13.6 |
+|---|---:|---:|
+| Right rear proxy y range | -0.0118 to 0.1678 | -0.0118 to 0.1594 |
+| Left rear proxy y range | -0.0116 to 0.1753 | -0.0116 to 0.1696 |
+| Max frame-matched right proxy 3D deviation from V13.5 | reference | 0.05011 (frame 125) |
+| Max frame-matched left proxy 3D deviation from V13.5 | reference | 0.04610 (frame 147) |
+| Largest negative proxy-height difference vs V13.5 | reference | R -0.02615, L -0.02357 |
+
+The V13.6 candidate **does not improve maximum mesh stretching** under this measure, and it lowers proxy clearance in part of swing. A shorter nearly static Hock-angle interval does **not** establish superior naturalness; the lower swing clearance may be undesirable. Absolute ground plane, true ground contact, hoof collision/sliding, skin self-intersections, perceptual realism and native Windows GPU/WebGL playback **remain unverified**. Neither a visual screenshot nor a high-speed real-horse frame-by-frame matching was produced in this follow-up.
+
+**Decision: HOLD.** Keep `main` on V13.5, retain V13.6 only as experimental code, and do not promote until matched side/rear/45-degree visual inspection and true GLB frame playback indicate improvement without regressions. Subsequent revisions should analyze stifle-hock coupling and foot clearance together rather than simply increase angle amplitude.
