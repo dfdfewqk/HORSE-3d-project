@@ -1,8 +1,8 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HORSE RANCH V13.8 후보 — 전체 질주 밸런스</title><style>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HORSE RANCH V13.9 후보 — 발굽 대용점 기반 몸통 균형</title><style>
 html,body{margin:0;height:100%;overflow:hidden;background:#08121b;color:#e9eef4;font-family:system-ui,sans-serif}
 iframe{display:block;width:100%;height:100%;border:0}
 #warning{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);max-width:95%;z-index:9;background:#472d26;padding:9px 15px;border-radius:8px}
-</style></head><body><div id="warning" role="alert"></div><iframe id="horse" src="./legacy-v7.html" title="HORSE RANCH V13.8 후보 3D 애니메이션"></iframe><script>
+</style></head><body><div id="warning" role="alert"></div><iframe id="horse" src="./legacy-v7.html" title="HORSE RANCH V13.9 후보 3D 애니메이션"></iframe><script>
 (function(){
  const frame=document.getElementById('horse');
  function fail(msg){const el=document.getElementById('warning');el.style.display='block';el.textContent=msg;}
@@ -10,7 +10,7 @@ iframe{display:block;width:100%;height:100%;border:0}
   const doc=frame.contentDocument;
   if(!doc){fail('기존 3D 모델을 불러오지 못했습니다.');return;}
   const sources=['gallop-v12.js','gallop-v13-1.js','gallop-v13-2.js',
-                 'gallop-v13-5.js','gallop-v13-7.js','gallop-v13-8.js'];
+                 'gallop-v13-5.js','gallop-v13-7.js','gallop-v13-8.js','gallop-v13-9.js'];
   function attach(i){if(i===sources.length)return;
    const s=doc.createElement('script');s.src='./'+sources[i];
    s.onload=()=>attach(i+1);
@@ -21,18 +21,18 @@ iframe{display:block;width:100%;height:100%;border:0}
   let loops=0;
   const watcher=setInterval(()=>{try{
    const win=frame.contentWindow;
-   if(win?.__horseGaitV138?.ready){
+   if(win?.__horseGaitV139?.ready){
     clearInterval(watcher);
     if(!win.__horseGaitV12?.hindRegionProtectedV134){fail('V13.4 피부 보정 확인에 실패했습니다.');return;}
-    const h=doc.querySelector('#header h1');if(h)h.textContent='HORSE RANCH V13.8 · 전체 Gallop 밸런스 실험';
+    const h=doc.querySelector('#header h1');if(h)h.textContent='HORSE RANCH V13.9 · 발굽 궤적 기반 몸통 지지 실험';
     const sub=doc.getElementById('subtitle');
-    if(sub)sub.textContent='기존 피부·네 다리 위상 보존 / 몸통·목·머리·꼬리 반응 통합 실험';
+    if(sub)sub.textContent='V13.8 네 다리·목·머리·꼬리 보존 / 뒷발 최저점에 맞춰 작은 몸통 지지 보정 추가';
     const note=doc.getElementById('note');
-    if(note)note.textContent='V13.8 실험용 · 기존 19본 웹 리그 · 실제 발굽 접지/GLB·GPU 시각 검증 미완료';
-    document.title='HORSE RANCH V13.8 후보 — 전체 질주 밸런스';
+    if(note)note.textContent='V13.9 실험용 · 실제 GLB 정점 수치 검사 수행 / 지면 접지·전체 피부·GPU 시각 검증 미완료';
+    document.title='HORSE RANCH V13.9 후보 — 발굽 대용점 기반 몸통 균형';
     return;
    }
-   const error=win?.__horseV138Error||win?.__horseV137Error||win?.__horseV135FoldError||
+   const error=win?.__horseV139Error||win?.__horseV138Error||win?.__horseV137Error||win?.__horseV135FoldError||
      win?.__horseV13_2Error||win?.__horseV13Error||win?.__horseV12Error;
    if(error){clearInterval(watcher);fail('애니메이션 오류: '+error);return;}
    if(++loops>650){clearInterval(watcher);fail('모델 로딩이 오래 걸립니다. 새로고침 후 확인해 주세요.');}
