@@ -1,4 +1,4 @@
-/* HORSE RANCH V13.7 — event-aligned integrated gallop candidate.
+/* HORSE RANCH V13.7b — lower-acceleration hind-chain warp experiment.
  * Left lead matches source V13.5 proxy low-point order: RH -> LH -> RF -> LF.
  * The events below are DESIGN TARGETS, not measured horse footfall timestamps.
  * Re-times complete limb chains (not isolated hock bones) and adds restrained
@@ -20,7 +20,9 @@
  function warpedPhase(i,limb){
   // One smooth, monotone phase mapping per complete leg. Does not reverse time.
   const d=wrap(i-FOOTFALLS[limb]+80)-80;
-  const slow=limb.startsWith('Fore')?1:4;
+  // Hind warp amplitude 4 -> 1 (fore remains 1) based on a 160-sample
+  // source-curve acceleration comparison. Proxy minima are not actual contact.
+  const slow=1;
   return wrap(BASE_MINIMA[limb]+d-slow*Math.sin(TAU*d/N));
  }
  function sampleRotation(q,index){
@@ -94,12 +96,13 @@
    const newIndex=g.animations.length;
    g.animations.push({name:NAME,duration:old.duration,channels});
    const opt=document.createElement('option');
-   opt.value=String(newIndex);opt.textContent='△ V13.7 실험 — 통합 Gallop';
+   opt.value=String(newIndex);opt.textContent='△ V13.7b 실험 — 후지 각가속도 완화';
    list.appendChild(opt);list.value=String(newIndex);list.dispatchEvent(new Event('change'));
    window.__horseGaitV137={ready:true,clip:NAME,changedTracks:modified,
     leftLeadTarget:true,footfalls:FOOTFALLS,phaseDiagnostics,
     originalGLBPreserved:true,originalGaitsPreserved:true,
-    contactVerified:false,visualVerified:false,userGPUVerified:false};
+    contactVerified:false,visualVerified:false,userGPUVerified:false,
+    hindWarpAmplitudeSamples:1,requiresGLBSkinRetest:true};
   }catch(e){window.__horseV137Error=String(e?.message||e);console.error('V13.7 candidate',e);}
  },100);
 })();
