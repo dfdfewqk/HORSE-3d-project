@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HORSE RANCH V16.7 · Walk + Three Gallops</title>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#071521;color:#e2eff9;font:12px/1.5 system-ui,sans-serif}
+iframe{width:100%;height:100%;display:block;border:0}
+#toolbar{position:fixed;right:12px;top:12px;z-index:20;display:flex;align-items:center;gap:5px;
+ background:#0b2739ee;border:1px solid #52748a;border-radius:9px;padding:6px;flex-wrap:wrap;max-width:94vw}
+button,select{background:#1b4154;color:#e2f1fa;padding:7px 9px;border:1px solid #6e98af;border-radius:6px;cursor:pointer}
+button[aria-pressed=true]{background:#196f82;border-color:#80c7e7;font-weight:bold}
+button:disabled{opacity:.5;cursor:wait}
+#panel{position:fixed;z-index:21;left:12px;bottom:12px;max-height:52vh;overflow:auto;
+ background:#071c2cee;border:1px solid #638299;border-radius:9px;padding:10px;
+ width:min(510px,calc(100vw - 24px))}
+#panel h2{font-size:14px;margin:0 0 6px}
+#panel small{color:#b8ccda}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{border-bottom:1px solid #334d60;text-align:left;padding:4px}
+td:not(:first-child){text-align:right}
+#frameTools{display:none;margin-top:8px}
+#frameTools input{width:100%}
+#alert{display:none;position:fixed;z-index:30;right:12px;top:63px;max-width:90vw;padding:10px;
+ border-radius:7px;color:white;background:#783d2f}
+a{color:#a8d7ff}
+pre{font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word}
+</style></head><body>
+<iframe id="viewer" src="../legacy-v7.html" title="원본 HORSE RANCH 3D 뷰어"></iframe>
+<div id="toolbar">
+ <button data-mode="walk" disabled>Walk</button>
+ <button data-mode="cruise" disabled>Gallop Cruise</button>
+ <button data-mode="fast" disabled>Gallop Fast</button>
+ <button data-mode="sprint" disabled>Gallop Sprint</button>
+ <button id="compare" disabled>이전 버전과 비교</button>
+</div>
+<section id="panel">
+ <button id="fold" style="float:right;padding:4px 7px">검사 접기</button>
+ <h2>V16.7 전신 움직임 검증</h2>
+ <div id="state">원본 모델과 애니메이션 모듈 로딩 중…</div>
+ <div id="extra">
+  <table><thead><tr><th>동작</th><th>변경 관절</th><th>주기</th><th>최대 각도 점프</th></tr></thead><tbody id="tracks"><tr><td colspan="4">검사 대기</td></tr></tbody></table>
+  <small>이 수치는 코드상 관절 회전 정보입니다. 실제 말과 같은 발굽 접지나 자연스러움의 증거가 아닙니다.</small>
+  <div style="margin-top:8px"><button id="auditButton" disabled>실제 GLB 1280프레임 CPU 검사</button> <a href="./?audit" id="auditLink">검사 주소</a></div>
+  <pre id="auditReport">GLB 스키닝 검사는 아직 실시되지 않았습니다.</pre>
+  <div id="frameTools">
+   <select id="camera"><option value="right">오른쪽 측면</option><option value="left">왼쪽 측면</option><option value="front">정면</option><option value="rear">후면</option><option value="quarter">45도</option></select>
+   <label for="frame">프레임 <span id="frameNumber">0</span>/159</label><input type="range" id="frame" min="0" max="159" value="0"/>
+  </div>
+ </div>
+ <div><small>보행 전환은 위상만 보존합니다. 포즈 크로스페이드·지면 반력·실제 Chrome GPU 자연스러움은 검증되지 않았습니다.</small></div>
+ <a href="../v16-6-walk-preview/">이전 V16.6 원본 페이지</a>
+</section>
+<div id="alert" role="alert"></div>
+<script>
+(function(){'use strict';
+const iframe=document.getElementById('viewer'),viewButtons=[...document.querySelectorAll('[data-mode]')],
+ info=document.getElementById('state'),body=document.getElementById('tracks'),errorbox=document.getElementById('alert'),
+ auditButton=document.getElementById('auditButton'),compare=document.getElementById('compare'),
+ frame=document.getElementById('frame'),camera=document.getElementById('camera'),
+ params=new URLSearchParams(location.search),showDebug=params.has('debug'),autoAudit=params.has('audit');
+let active='walk',older=false,busy=false;
+const fail=msg=>{errorbox.textContent=String(msg);errorbox.style.display='block';info.textContent='검사 필요: '+msg};
+document.getElementById('fold').onclick=()=>{
+ const extra=document.getElementById('extra'),hide=extra.style.display!=='none';
+ extra.style.display=hide?'none':'block';document.getElementById('fold').textContent=hide?'검사 펼치기':'검사 접기';
+};
+iframe.addEventListener('load',()=>{
+ const d=iframe.contentDocument,w=iframe.contentWindow;
+ if(!d||!w){fail('원본 iframe 접근 불가');return;}
+ const paths=[
+     "../v14-preview/horse-gaits-runtime.js",
+     "../v15-preview/v15-motion.js",
+     "../v15-preview/v15-hair.js",
+     "../v15-preview/v15-skin-qa.js",
+     "../v16-walk-preview/walk-foot-targets.js",
+     "../v16-walk-preview/walk-ik.js",
+     "../v16-walk-preview/walk-motion.js",
+     "../v16-walk-preview/walk-qa.js",
+     "../v16-1-walk-preview/walk-foot-targets.js",
+     "../v16-1-walk-preview/walk-ik.js",
+     "../v16-1-walk-preview/walk-motion.js",
+     "../v16-1-walk-preview/walk-qa.js",
+     "../v16-2-walk-preview/walk-reference.js",
+     "../v16-2-walk-preview/walk-foot-contact.js",
+     "../v16-2-walk-preview/walk-body-motion.js",
+     "../v16-2-walk-preview/walk-limb-ik.js",
+     "../v16-2-walk-preview/walk-motion.js",
+     "../v16-2-walk-preview/walk-secondary-motion.js",
+     "../v16-2-walk-preview/walk-qa.js",
+     "../v16-2-walk-preview/walk-visual-qa.js",
+     "../v16-3-walk-preview/walk-reference.js",
+     "../v16-3-walk-preview/walk-foot-contact.js",
+     "../v16-3-walk-preview/walk-body-motion.js",
+     "../v16-3-walk-preview/walk-limb-ik.js",
+     "../v16-3-walk-preview/walk-motion.js",
+     "../v16-3-walk-preview/walk-secondary-motion.js",
+     "../v16-3-walk-preview/walk-qa.js",
+     "../v16-3-walk-preview/walk-visual-qa.js",
+     "../v16-4-walk-preview/walk-reference.js",
+     "../v16-4-walk-preview/walk-foot-contact.js",
+     "../v16-4-walk-preview/walk-body-motion.js",
+     "../v16-4-walk-preview/walk-limb-ik.js",
+     "../v16-4-walk-preview/walk-motion.js",
+     "../v16-4-walk-preview/walk-secondary-motion.js",
+     "../v16-4-walk-preview/walk-qa.js",
+     "../v16-4-walk-preview/walk-visual-qa.js",
+     "../v16-5-walk-preview/walk-reference.js",
+     "../v16-5-walk-preview/walk-foot-contact.js",
+     "../v16-5-walk-preview/walk-body-motion.js",
+     "../v16-5-walk-preview/walk-limb-ik.js",
+     "../v16-5-walk-preview/walk-motion.js",
+     "../v16-5-walk-preview/walk-secondary-motion.js",
+     "../v16-5-walk-preview/walk-qa.js",
+     "../v16-5-walk-preview/walk-visual-qa.js",
+     "../v16-6-walk-preview/walk-leg-drive.js",
+     "../v16-6-walk-preview/walk-motion.js",
+     "./gait-builder.js",
+     "./gait-runtime.js",
+     "./gait-audit.js",
+     "./gait-visual.js"
+ ];
+ let next=0,broken=false;
+ const add=()=>{if(next>=paths.length)return;
+  const path=paths[next],s=d.createElement('script');s.src=new URL(path,location.href).href;
+  s.onload=()=>{next++;add()};s.onerror=()=>{broken=true;fail('모듈 파일 로딩 실패: '+path)};
+  d.body.appendChild(s);
+ };add();
+ let ticks=0;
+ const poll=setInterval(()=>{
+  const problem=w.__horseV167Error||w.__horseV167VisualError||w.__horseV166Error||
+   w.__horseV165Error||w.__horseV164Error||w.__horseV163Error||
+   w.__horseV15Error||w.__horseV14Error||w.__horseV12Error;
+  if(broken||problem){clearInterval(poll);if(problem)fail(problem);return;}
+  if(!w.__horseV167?.ready||!w.__horseV167QA?.run||!w.__horseV167Visual?.ready){
+   if(++ticks>950){clearInterval(poll);fail('V16.7 실행 시간 초과');}
+   return;
+  }
+  clearInterval(poll);
+  const runtime=w.__horseV167;
+  if(Object.keys(runtime.clipIndexes).length!==4||runtime.changedLegCount!==4||runtime.addedClips!==4)
+   {fail('V16.7 필수 클립 누락');return;}
+  const currentSelect=d.getElementById('animations');
+  function choose(mode,previous=false){
+   const idx=previous?runtime.sourceIndexes[mode]:runtime.clipIndexes[mode];
+   if(!Number.isInteger(idx)||idx<0){fail('동작 인덱스 불일치');return;}
+   const before=w.object3d?.animations?.[Number(currentSelect.value)];
+   const phase=before?.duration?(w.__horseV167Visual.status().phase%before.duration)/before.duration:0;
+   currentSelect.value=String(idx);currentSelect.dispatchEvent(new Event('change'));
+   w.__horseV15.mode=mode;w.__horseV14.mode=mode;active=mode;older=previous;
+   if(showDebug){w.__horseV167Visual.frame(mode,Number(frame.value),previous);}
+   viewButtons.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===mode)));
+   compare.textContent=previous?'새 V16.7 보기':'이전 버전과 비교';
+   info.textContent=(previous?'기존 동작':'신규 V16.7')+' · '+mode+' · 동일 뷰어에서 비교 중';
+  }
+  for(const b of viewButtons){b.disabled=false;b.onclick=()=>choose(b.dataset.mode,false);}
+  compare.disabled=false;compare.onclick=()=>choose(active,!older);
+  body.replaceChildren();
+  for(const [mode,s] of Object.entries(runtime.metrics)){
+   const tr=d.createElement('tr');
+   const row=[mode,String(s.jointChannels)+'/14',(s.period).toFixed(2)+'초',s.maxStepDeg.toFixed(1)+'°'];
+   for(const val of row){const td=d.createElement('td');td.textContent=val;tr.appendChild(td);}
+   body.appendChild(tr);
+  }
+  document.getElementById('state').textContent='네 동작 19채널 구성 확인 · 실제 GLB 피부 연결 관절 14개 점검 수행';
+  if(showDebug){
+   document.getElementById('frameTools').style.display='block';w.__horseV167Visual.view('right');
+   frame.oninput=()=>{const f=w.__horseV167Visual.frame(active,Number(frame.value),older);document.getElementById('frameNumber').textContent=String(f.frame)};
+   camera.onchange=()=>w.__horseV167Visual.view(camera.value);
+   frame.oninput();
+  }
+  async function runAudit(){
+   if(busy)return;busy=true;auditButton.disabled=true;document.getElementById('auditReport').textContent='실제 GLB 1280프레임 CPU 스키닝 검사 진행 중…';
+   try{
+    const result=await w.__horseV167QA.run(progress=>{
+     document.getElementById('auditReport').textContent='실제 GLB CPU 검사 '+Math.round(progress*100)+'%';
+    });
+    const rows=[];
+    for(const mode of ['walk','cruise','fast','sprint']){
+     const before=result.modes[mode+'Old'],after=result.modes[mode];
+     const penetration=group=>Math.max(...Object.values(group.feet).map(x=>x.worstPenetration));
+     const slide=group=>Math.max(...Object.values(group.feet).map(x=>x.maxTravelCorrectedStanceSlip));
+     const mm=v=>(v*1000).toFixed(1)+'mm';
+     rows.push(mode+': 지면관통 '+mm(penetration(before))+'→'+mm(penetration(after))+
+       ', 보정 지지발 편차 '+mm(slide(before))+'→'+mm(slide(after))+
+       ', 피부신장(앞/뒤) '+before.edge.fore.max.toFixed(2)+'/'+before.edge.hind.max.toFixed(2)+'→'+
+       after.edge.fore.max.toFixed(2)+'/'+after.edge.hind.max.toFixed(2));
+    }
+    rows.push('CPU 스키닝 완료. 구조적 접지/변형 수치일 뿐 실제 말 운동학·GPU 화면 합격이 아님.');
+    document.getElementById('auditReport').textContent=rows.join('\n');
+   }catch(e){document.getElementById('auditReport').textContent='GLB 검사 FAIL: '+String(e?.message||e);fail('CPU GLB 검사 실패: '+String(e?.message||e));}
+   finally{busy=false;auditButton.disabled=false;}
+  }
+  auditButton.disabled=false;auditButton.onclick=runAudit;
+  choose('walk');if(autoAudit)runAudit();
+ },120);
+});
+})();
+</script></body></html>
