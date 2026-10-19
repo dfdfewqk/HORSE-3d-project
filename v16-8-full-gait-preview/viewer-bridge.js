@@ -61,6 +61,17 @@
      obj.mode=s.mode;obj.selectedClip=s.clip;
     }
    }
+   const labels={walk:'Walk',cruise:'Gallop Cruise',fast:'Gallop Fast',sprint:'Gallop Sprint'};
+   function ensureOption(destination){
+    const resolved=map.get(destination);
+    if(!resolved)throw Error('No mapped gait for clip '+destination);
+    if(resolved.mode==='idle')return;
+    const option=[...selectEl.options].find(o=>o.textContent.trim()===labels[resolved.mode]);
+    if(!option)throw Error('Missing five-mode option '+resolved.mode);
+    // Previous clips are not selectable by value unless a REAL option owns
+    // that value. Assigning a missing value clears HTMLSelectElement.value.
+    option.value=String(destination);
+   }
    function nextPose(origin,destination,wasPlaying){
     if(!Number.isInteger(destination)||!map.has(destination))
      throw Error('V16.8 invalid clip request '+destination);
@@ -68,9 +79,10 @@
     const sourcePose=copyPose();
     const oldPhase=origin.phase;
     suppress=true;
-    try{selectEl.value=String(destination);selectEl.dispatchEvent(new Event('change',{bubbles:true}));}
+    try{ensureOption(destination);selectEl.value=String(destination);selectEl.dispatchEvent(new Event('change',{bubbles:true}));}
     finally{suppress=false;}
-    if(clipIndex!==destination)throw Error('Legacy selection mismatch after change');
+    if(clipIndex!==destination||selectEl.value!==String(destination))
+     throw Error('Legacy selection mismatch after change: '+destination+'/'+selectEl.value);
     const target=g.animations[destination];
     animTime=target?.duration?oldPhase*target.duration:0;
     play=destination>=0&&wasPlaying;

@@ -42,9 +42,11 @@ pre{font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap;word-break:break-
  <div id="state">원본 모델과 애니메이션 모듈 로딩 중…</div>
  <div id="extra">
   <table><thead><tr><th>동작</th><th>변경 관절</th><th>주기</th><th>최대 각도 점프</th></tr></thead><tbody id="tracks"><tr><td colspan="4">검사 대기</td></tr></tbody></table>
-  <small>V16.8은 선택 상태 및 전환을 수정하는 격리 후보입니다. 다리 모션은 V16.7 그대로이며 기존 FAIL 값을 해결하지 않았습니다.</small>
+  <small>V16.8은 상태 동기화와 별도의 Walk 스킨 접지 최적화 시험을 포함합니다. 불합격 후보는 실제 재생 클립에 자동 적용하지 않습니다.</small>
   <div style="margin-top:8px"><button id="auditButton" disabled>V16.7 GLB 1280프레임 CPU 검사</button> <a href="./?audit" id="auditLink">검사 주소</a></div>
   <pre id="auditReport">GLB 스키닝 검사는 아직 실시되지 않았습니다.</pre>
+  <div style="margin-top:8px"><button id="walkFitButton" disabled>Walk 실제 스킨 접지 보정 및 160프레임 검사</button></div>
+  <pre id="walkFitReport">P1/P2 후보를 실행하지 않았습니다. 실험 결과가 나와도 실제 Chrome 시각 검증 전에는 합격으로 취급하지 않습니다.</pre>
   <div id="frameTools">
    <select id="camera"><option value="right">오른쪽 측면</option><option value="left">왼쪽 측면</option><option value="front">정면</option><option value="rear">후면</option><option value="quarter">45도</option></select>
    <label for="frame">프레임 <span id="frameNumber">0</span>/159</label><input type="range" id="frame" min="0" max="159" value="0"/>
@@ -121,7 +123,8 @@ iframe.addEventListener('load',()=>{
      "../v16-7-full-gait-preview/gait-runtime.js",
      "../v16-7-full-gait-preview/gait-audit.js",
      "../v16-7-full-gait-preview/gait-visual.js",
-     "./viewer-bridge.js"
+     "./viewer-bridge.js",
+     "./walk-contact-fit.js"
  ];
  let next=0,broken=false;
  const add=()=>{if(next>=paths.length)return;
@@ -135,7 +138,7 @@ iframe.addEventListener('load',()=>{
    w.__horseV165Error||w.__horseV164Error||w.__horseV163Error||
    w.__horseV15Error||w.__horseV14Error||w.__horseV12Error||w.__horseV168BridgeError;
   if(broken||problem){clearInterval(poll);if(problem)fail(problem);return;}
-  if(!w.__horseV167?.ready||!w.__horseV167QA?.run||!w.__horseV167Visual?.ready||!w.__horseV168Bridge?.ready){
+  if(!w.__horseV167?.ready||!w.__horseV167QA?.run||!w.__horseV167Visual?.ready||!w.__horseV168Bridge?.ready||!w.__horseV168WalkFit?.runViewer){
    if(++ticks>950){clearInterval(poll);fail('V16.8 bridge 실행 시간 초과');}
    return;
   }
@@ -228,6 +231,31 @@ iframe.addEventListener('load',()=>{
    finally{busy=false;auditButton.disabled=false;}
   }
   auditButton.disabled=false;auditButton.onclick=runAudit;
+  const walkFitButton=document.getElementById('walkFitButton'),
+   walkFitReport=document.getElementById('walkFitReport');
+  walkFitButton.disabled=false;
+  walkFitButton.onclick=async()=>{
+   if(w.__horseV168WalkFit.state.status==='running')return;
+   walkFitButton.disabled=true;
+   walkFitReport.textContent='실제 19본 GLB Walk 접지/스킨 후보를 평가 중 (원본 유지)\u2026';
+   try{
+    const result=await w.__horseV168WalkFit.runViewer(progress=>{
+     walkFitReport.textContent='실제 GLB 검사 진행 '+Math.round(progress*100)+'%';
+    });
+    const s=result.report;
+    walkFitReport.textContent='Walk 접지 보정 후보: '+s.status+
+     '\\n실제 GLB: '+s.skinnedVertices+'개 정점, '+s.frames+'개 프레임'+
+     '\\n발굽 관통 (기존→후보): '+s.baselineMaximumPenetrationMm.toFixed(2)+'→'+s.maximumPenetrationMm.toFixed(2)+'mm'+
+     '\\n접지 높이 오차: '+s.maxStanceErrorMm.toFixed(2)+'mm'+
+     '\\n최대 스킨 변형 (기존→후보): '+s.baselineMaximumSkinEdgeStretch.toFixed(3)+'→'+s.maximumSkinEdgeStretch.toFixed(3)+'배'+
+     '\\n주기 경계 최대 각도: '+s.maximumCycleSeamDeg.toFixed(2)+'도'+
+     '\\n보폭 보정 지지발 편차: '+s.largestConsecutiveCorrectedStanceZDeltaMm.toFixed(2)+'mm'+
+     '\\n상태: '+(s.violations.length?s.violations.join(' / '):'수치상 통과, Chrome 시각 검증은 미완료')+
+     '\\n이 후보는 저장소 원본 또는 실제 선택 클립을 변경하지 않았습니다.';
+   }catch(err){
+    walkFitReport.textContent='Walk P1/P2 검사 FAIL: '+String(err?.message||err);
+   }finally{walkFitButton.disabled=false;}
+  };
   renderState();if(autoAudit)runAudit();
  },120);
 });

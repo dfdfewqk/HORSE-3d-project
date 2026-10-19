@@ -1,46 +1,51 @@
-# HORSE RANCH V16.8 — isolated P0 integration, NOT A RELEASE
+# HORSE RANCH V16.8 — P0 bridge + P1/P2 Walk contact-fit staging
 
-**Base main:** `e7aa72cc8611c708721a6a4468de951f3a4d2137` (V16.7)
-**Folder:** `v16-8-full-gait-preview/`
+**Baseline:** `main` at `e7aa72cc8611c708721a6a4468de951f3a4d2137`. This branch is an isolated test environment, **not a natural-walk release**. Do not deploy or merge automatically.
 
-## Concrete changes in this branch
-- New top-level preview `index.html` loads all existing 50 dependent scripts from their original unchanged locations, then loads `viewer-bridge.js`.
-- The real legacy `clipIndex` / `animTime` / `play` are authoritative. The upper Idle/Walk/Cruise/Fast/Sprint selector, lower selection, source/new comparison, play/pause, and speed mirror this state.
-- Switching clips retains the normalized source-phase and begins an experimental 180ms quaternion/translation/scale pose blend. A lower-select change is intercepted in its capture phase before the legacy change handler resets the clock.
-- The original GLB, source clips, V15–V16.7 code, original five lower UI options, 19-bone rig, 440-vertex abdomen correction, and HairKey are not modified.
-- Existing V16.7 CPU geometry audit is exposed with *diagnostic* guardrails (hooves >5mm below ground, stance >15mm, mesh edge stretch >1.20x). These thresholds do **not** mean that any gait is physically validated.
+## Files / actual changes
+- `index.html`: original legacy iframe, 50 original scripts and two new V16.8 scripts, 5 top/lower modes, a manual P1/P2 test button and side-by-side diagnostic output.
+- `viewer-bridge.js`: uses legacy `clipIndex` as the only source of truth, adds 180ms experimental pose blending, preserves phase, synchronizes mode, compare, speed, play and Idle. **P0 fix:** updates the real DOM option value before switching to an old source clip; assigning an index not present in an HTML select's options can clear its value and select the wrong clip.
+- `walk-contact-fit.js`: new **experimental Walk-only** real skinned vertex optimization. Processes four hoof contact/toe/heel triplets, 14 original X-hinge limb rotations, cyclic gait targets; reconstructs all 19 joint transforms + inverse bind matrices. It runs **160 full-mesh CPU skin evaluations** for candidate and baseline. Skin cohort expected from V16.7 runtime: fore 3107, hind 2932 edges.
+- It does NOT alter the embedded GLB, source animations, mesh materials, HairKey, Idle/Gallop, 440-vertex correction or pre-V16.8 files. It does NOT append or automatically play the experimental candidate. P3/P4 remain unchanged.
 
-## Checks actually performed
-| Verification | Status | Notes |
+## 2026-10-19 verification results
+
+| Verification | Status | Exact extent |
 |---|---|---|
-| Repository `main` SHA | PASS | Verified at project handoff |
-| Source asset dependency paths | PASS | All 50 previously deployed scripts resolve in the repository; new `viewer-bridge.js` included as 51st |
-| HTML inline JavaScript syntax | PASS | `new Function` parse in isolated JavaScript host |
-| Bridge JavaScript syntax | PASS | `new Function` parse in isolated JavaScript host |
-| Mock mode change / phase retention / original compare / Idle | PASS | Mock DOM and rig only, NOT Chrome/GLB |
-| Direct Chromium viewer UI interaction | NOT VERIFIED | Browser integration not executed |
-| Real GLB old/new 1280-frame CPU inspection | NOT VERIFIED | Existing audit is still available via `?audit`; not executed here |
-| P1 actual hoof-toe/heel/centre ground anchoring | FAIL / UNRESOLVED | V16.7 builder is retained, no new gait substituted |
-| P2 real skin extension & 19-joint kinematic reachability | FAIL / UNRESOLVED | Previous P1/P2 trial increased skin stretching |
-| P3 body/neck/head/hair response physically coupled to contact | UNRESOLVED | Earlier sine-based source gait remains |
-| P4 Cruise/Fast/Sprint biomechanics and mode-transition hoof slip | NOT VERIFIED | Runtime pose blend exists; contact during blend not measured |
-| Original asset preservation | PASS (Git tree paths) | This commit adds only this independent folder |
+| Repo original `main` HEAD before work | PASS | `e7aa72cc...` checked through GitHub |
+| New JavaScript and HTML inline syntax | PASS | JS parser |
+| P0 previous/new modes & Idle, actual option-value restriction | PASS (MOCK ONLY) | Simulated select rejects values without an option; tested Walk old/new, Cruise old, Idle; selected index and normalized phase 0.5 match |
+| Embed decoded from original 11.6MB HTML | PASS | Source 19 skin joints, 24,314 body vertices, original native GLB source |
+| Four authentic contact/toe/heel vertex triplets | PASS | Actual GLB source B-Rep/skin buffer accessor decoded |
+| Original raw GLB source Walk proxy 160 frames | COMPLETED, NUMERIC FAIL | **Raw `Walk_PREVIEW` clip** was aliased to `Walk_V16_7_FOOTFALL` strictly to test algorithm with real skinned GLB geometry; this is **not the actual generated V16.7 candidate** |
+| Chrome actual V16.8 multi-script playback | NOT VERIFIED | Real Chromium UI/GLB rendering not executed |
+| 160-frame P1/P2 using actual V16.7 runtime & corrected mesh | NOT VERIFIED | Requires in-browser `Walk 실제 스킨 접지 보정 및 160프레임 검사` |
+| 1280-frame eight-clip V16.7 audit | NOT VERIFIED in this update | Existing UI `?audit` available; was not run |
+| P3 secondary body/neck/hair coupling | UNRESOLVED | Not changed |
+| P4 individual gallops/true continuous inter-gait support | UNRESOLVED | Not changed |
 
-## Previous measurements — MUST NOT be counted as V16.8 test results
+## Real original-GLB geometry calibration
+- Unmodified GLB scanned Y ground approximately **-0.001619m**.
+- Fore feet: **0.14182m** toe-to-heel longitudinal extent (sole markers). Hind feet: **0.15021m**.
+- Raw GLB per-mesh skin-edge cohorts calculated in the isolated decode: **3175 front / 2934 rear**, **not** the 3107/2932 established by the fully corrected V16.7 QA. Do **not** mix these setups or infer full-runtime equivalence. In the actual runtime, protect the known 440-vertex correction and audit it before accepting results.
 
-The handed-over V16.8 investigation reported real GLB proxy evaluations (not the complete production runtime):
-- Walk: penetration 21.19 → 16.26 mm; front skin extension 1.196 → 1.447x
-- Cruise: 39.20 → 36.60 mm; 1.255 → 1.542x
-- Fast: 62.17 → 49.54 mm; 1.349 → 1.583x
-- Sprint: 36.49 → 39.63 mm; 1.401 → 1.542x
+## Original GLB raw Walk proxy A/B (NOT real V16.7 runtime)
+| Metric | Raw Walk source | Chosen P1/P2 tuning candidate | Decision |
+|---|---:|---:|---|
+| Maximum hoof penetration | 22.19 mm | 8.88 mm | Improved, still FAIL (limit 5mm) |
+| Maximum full skinned edge elongation | 1.447x | 1.342x | Improved, still FAIL (limit 1.20x) |
+| Maximum stance contact height error | — | 31.09 mm | FAIL (limit 12mm) |
+| Largest virtual-stride-corrected consecutive stance Z step | — | 52.39 mm | FAIL (limit 15mm) |
+| Cyclic seam rotation | — | 3.48 deg | This metric alone does not validate motion |
 
-The revised experimental IK reduced center-point error but did **not** pass toe/heel/skin tests. Do not promote the old experimental IK clip generator.
+An initial poorly weighted candidate worsened penetration to ~31.00mm; rejected.
+A separate 4-deg per-frame step constraint reduced penetration to 7.85mm but worsened edge stretching to 1.460x and seam to 13.94deg; **rejected, not shipped**.
+The committed contact-fit is the earlier conservative candidate which improved penetration **and** skin stretching. It still fails the hard limits; do **not** promote, auto-play or render as a finished horse walk.
 
-## Required gates before merge/deploy as finished
-1. Test with real Chromium + actual embedded GLB; verify 5 lower modes, source/candidate, changing speed and play/idle, animation state, normal and reverse switching, and glitch-free transitions.
-2. Build **genuinely new** skin-aware hoof constraints, with contact/toe/heel and 19-joint limitations checked against full model; do not claim IK-center success alone.
-3. Run 4 existing ×160 + 4 new ×160 = 1,280 CPU-skinned frames; log penetration, stance slip, toe/heel contact, edge extension, seams, plus body/head/hair behavior.
-4. Do frame-matched, fixed-camera qualitative inspection using real recorded horse references.
-5. Only on ALL gates passing, commit/merge to `main` and enable/publicize the GitHub Pages result. Until then this branch is an isolated candidate and **does not have a confirmed published V16.8 URL**.
+## Hard evaluation gates
+1. Same original 19 joints, unchanged V15–V16.7, 440 original abdomen corrections, original still pose and gallops.
+2. Full-runtime CPU audit of sole contact + toe/heel, swing clearance, virtual treadmill-relative stance shift (not true world travel), max edge stretching and cycles; **never** equate IK-center error to ground contact.
+3. For each candidate fail if penetration exceeds **5mm**, stance vertical error exceeds **12mm**, virtual stride-corrected consecutive stance step exceeds **15mm**, skin edge elongation exceeds **1.20x**, cycle seam exceeds **12deg**, or any candidate regresses >1mm penetration / 0.02x skin stretch from baseline. Limits are engineering diagnostic thresholds, **not veterinary validation**.
+4. When real Chrome and recorded-video side-by-side evidence is unavailable, report **NOT VERIFIED**. Do not merge or deploy as finished.
 
-Key source study: Ratzlaff et al. (1993), https://pubmed.ncbi.nlm.nih.gov/8470468/ ; Deuel et al. (1994), https://beva.onlinelibrary.wiley.com/doi/10.1111/j.2042-3306.1994.tb04869.x .
+Research context (not a direct validation of our rig): hoof breakover during equine walking typically occupies the last portion of stance. https://pmc.ncbi.nlm.nih.gov/articles/PMC7259550/ . Actual force-plate and kinematic events cannot be derived simply from the preview GLB.
