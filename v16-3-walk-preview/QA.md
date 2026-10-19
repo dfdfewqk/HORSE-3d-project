@@ -43,3 +43,10 @@
 
 ## Acceptance criteria
 Do not claim V16.3 is a realistic finished Walk unless full GLB audit, matched reference-footfall pose review, joint-limit comparison, toe/heel contact, and visual Chrome playback pass. Revert only candidate code on failure; preserve original baseline.
+
+## V16.3 follow-up audit improvements
+- Audit tracks separate toe/heel ground penetration, toe/heel vertical difference, per-foot IK positional/orientation errors and joint-limit events.
+- The audit chart labels are corrected to V16.2/V16.3 and provides a one-click copyable JSON result for reproducible Chrome inspections.
+- Browser initialization displays Walk-only secondary-hair and visual-debug initialization errors instead of silently omitting them.
+- These diagnostic changes do not modify GLB, skin weights, Gallops, or the V16.3 Walk clip motion curves.
+- Full 160-frame browser-run audit and source-video phase-matched inspection remain required for animation approval.

@@ -1,4 +1,4 @@
-/* HORSE RANCH V16.3 CPU audit: V16.1/V16.3 real-GLB geometry, read-only */
+/* HORSE RANCH V16.3 CPU audit: V16.2/V16.3 real-GLB geometry, read-only */
 (function(){'use strict';
 const N=160,names={baseline:'Walk_V16_2_FULL_BODY_CANDIDATE',candidate:'Walk_V16_3_CONTACT_COORDINATED'};
 const state={status:'idle',progress:0,result:null,error:null,run};
@@ -74,7 +74,7 @@ function run(onProgress){
  const stats={};
  for(const key of Object.keys(names)){
   stats[key]={feet:Object.fromEntries(Object.keys(setup.feet).map(k=>[k,{minY:Infinity,maxY:-Infinity,
-   worstPenetration:0,maxStanceVerticalError:0,maxStanceHorizontalDelta:0,stanceSamples:0,nearGround:0,samples:[]}]))};
+   worstPenetration:0,worstToePenetration:0,worstHeelPenetration:0,maxToeHeelHeightDifference:0,maxStanceVerticalError:0,maxStanceHorizontalDelta:0,stanceSamples:0,nearGround:0,samples:[]}]))};
   stats[key].edge={fore:new Float64Array(setup.edges.fore.length),hind:new Float64Array(setup.edges.hind.length)};
  }
  let step=0;
@@ -88,7 +88,11 @@ function run(onProgress){
     });
     for(const [name,config] of Object.entries(setup.feet)){
      const f=s.feet[name],verts=[config.contactVertex,config.toeVertex,config.heelVertex];
-     const minY=Math.min(...verts.map(v=>coords[v*3+1]));
+     const contactY=coords[config.contactVertex*3+1],toeY=coords[config.toeVertex*3+1],heelY=coords[config.heelVertex*3+1];
+      const minY=Math.min(contactY,toeY,heelY);
+      f.worstToePenetration=Math.max(f.worstToePenetration,Math.max(0,setup.ground-toeY));
+      f.worstHeelPenetration=Math.max(f.worstHeelPenetration,Math.max(0,setup.ground-heelY));
+      f.maxToeHeelHeightDifference=Math.max(f.maxToeHeelHeightDifference,Math.abs(toeY-heelY));
      const z=coords[config.contactVertex*3+2],phase=window.__horseV163Contact.trajectory(name,frame,{floor:setup.ground});
      f.minY=Math.min(f.minY,minY);f.maxY=Math.max(f.maxY,minY);
      f.worstPenetration=Math.max(f.worstPenetration,Math.max(0,setup.ground-minY));
@@ -96,7 +100,7 @@ function run(onProgress){
        if(f.samples.length){const prev=f.samples.at(-1);if(prev.frame===frame-1&&prev.stance)
         f.maxStanceHorizontalDelta=Math.max(f.maxStanceHorizontalDelta,Math.abs(z-prev.z));}}
      if(Math.abs(minY-setup.ground)<.012)f.nearGround++;
-     f.samples.push({frame,stance:phase.stance,y:minY,z});
+     f.samples.push({frame,stance:phase.stance,y:minY,toeY,heelY,contactY,z});
     }
    }
    state.progress=step/(2*N);if(onProgress)onProgress(state.progress);
@@ -107,7 +111,9 @@ function run(onProgress){
    }
    const summary=Object.fromEntries(Object.entries(stats).map(([key,s])=>[key,{edge:s.edge,
     feet:Object.fromEntries(Object.entries(s.feet).map(([name,f])=>[name,{minY:f.minY,maxY:f.maxY,
-     worstPenetration:f.worstPenetration,maxStanceVerticalError:f.maxStanceVerticalError,
+     worstPenetration:f.worstPenetration,worstToePenetration:f.worstToePenetration,
+      worstHeelPenetration:f.worstHeelPenetration,maxToeHeelHeightDifference:f.maxToeHeelHeightDifference,
+      maxStanceVerticalError:f.maxStanceVerticalError,
      maxStanceHorizontalDeltaPerFrame:f.maxStanceHorizontalDelta,stanceSamples:f.stanceSamples,nearGround:f.nearGround,
      sampleFrames:f.samples.filter(x=>x.frame%20===0),allFrames:f.samples}]))}]));
    state.result={framesPerClip:N,bodyVertices:24314,edgeCohorts:{fore:3107,hind:2932},

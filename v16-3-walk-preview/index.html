@@ -9,18 +9,18 @@ iframe{display:block;border:0;width:100%;height:100%}
  background:#502a24;display:none}
 #audit{display:none;position:fixed;left:12px;bottom:12px;z-index:30;width:min(410px,calc(100vw - 30px));max-height:55vh;overflow:auto;background:rgba(4,17,31,.97);border:1px solid #64829d;border-radius:9px;padding:12px;color:#dbeaf1;font:12px/1.5 system-ui,sans-serif}
 #audit canvas{width:100%;height:180px;background:#0a2234}#audit select{background:#244054;color:white;border:1px solid #607d99;padding:4px}
-#audit a{color:#a1d1ff}#audit pre{white-space:pre-wrap;word-break:break-word}
+#audit a{color:#a1d1ff}#audit pre{white-space:pre-wrap;word-break:break-word}#audit button{margin:6px 0 9px;padding:7px 11px;background:#254c62;border:1px solid #7aabcb;border-radius:6px;color:white;cursor:pointer}
 #dev{display:none}#dev input{width:100%;accent-color:#7fc8ff}#dev select{background:#244054;color:white;padding:3px}#dev label{font-weight:600}
 </style></head><body>
 <iframe id="viewer" src="../legacy-v7.html" title="기존 HORSE RANCH 3D 뷰어"></iframe>
 <div id="notice" role="status"></div><section id="audit"><strong>Walk V16.2 → V16.3 실제 GLB 수치 비교</strong>
-<p>실제 GLB 대표점 높이·피부 변형을 비교합니다. 실제 접촉력과 GPU 화면의 자동 인증은 아닙니다.</p>
+<p>실제 GLB의 발끝·뒤꿈치 높이, 피부 변형 및 IK 목표 오차를 비교합니다. 실제 접촉력이나 GPU 화면의 자동 인증은 아닙니다.</p>
 <div id="dev"><label for="seek">Walk 프레임: <span id="fr">0</span> / 159</label>
 <input id="seek" type="range" min="0" max="159" step="1" value="0"/>
 <label for="cam">카메라</label> <select id="cam"><option value="right">오른쪽 측면</option><option value="left">왼쪽 측면</option><option value="front">정면</option><option value="rear">후면</option><option value="quarter">45도</option></select>
 <p>정지·프레임 이동은 <code>?debug</code>에서만 활성화됩니다.</p></div>
 <select id="foot"><option value="ForeR">오른쪽 앞발</option><option value="ForeL">왼쪽 앞발</option><option value="HindR">오른쪽 뒷발</option><option value="HindL">왼쪽 뒷발</option></select>
-<canvas id="plot" width="700" height="320"></canvas><pre id="report">검사 대기</pre>
+<canvas id="plot" width="700" height="320"></canvas><div><button id="copy" type="button" disabled>검사 보고서 복사</button></div><pre id="report">검사 대기</pre>
 <a href="../v16-2-walk-preview/">기존 V16.2 실행판으로 돌아가기</a></section>
 
 <script>
@@ -44,17 +44,30 @@ iframe{display:block;border:0;width:100%;height:100%}
     c.strokeStyle=color;c.lineWidth=3;c.beginPath();
     array.forEach((p,i)=>{const [x,y]=xy(i,p.y);i?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();
    }
-   c.font='16px system-ui';c.fillStyle='#fac074';c.fillText('V16',140,23);
-   c.fillStyle='#77ceff';c.fillText('V16.1',225,23);c.fillStyle='#dce9f4';
+   c.font='16px system-ui';c.fillStyle='#fac074';c.fillText('V16.2',140,23);
+   c.fillStyle='#77ceff';c.fillText('V16.3',245,23);c.fillStyle='#dce9f4';
    c.fillText('Y(m)',8,22);c.fillText('0',15,xy(0,0)[1]+4);c.fillText('frame 0',40,h-8);c.fillText('160',w-43,h-8);
-   const mm=x=>(x*1000).toFixed(1)+' mm';
-   document.getElementById('report').textContent=
-    key+' | V16.2 → V16.3\\n'+
-    '최대 지면 관통: '+mm(old.worstPenetration)+' → '+mm(now.worstPenetration)+'\\n'+
-    '지지 높이 최대 편차: '+mm(old.maxStanceVerticalError)+' → '+mm(now.maxStanceVerticalError)+'\\n'+
-    '앞다리 피부 최대 신장: '+v.baseline.edge.fore.max.toFixed(3)+' → '+v.candidate.edge.fore.max.toFixed(3)+'배\\n'+
-    '뒷다리 피부 최대 신장: '+v.baseline.edge.hind.max.toFixed(3)+' → '+v.candidate.edge.hind.max.toFixed(3)+'배\\n'+
-    '실제 Chrome 렌더링·접촉력은 별도로 검증해야 합니다.';
+   const mm=x=>Number.isFinite(x)?(x*1000).toFixed(1)+' mm':'측정 불가';
+   const ik=window.__horseV163?.proxyMetrics?.[key]||{};
+   const lines=[
+    key+' | V16.2 → V16.3',
+    '최대 지면 관통(발굽 3점): '+mm(old.worstPenetration)+' → '+mm(now.worstPenetration),
+    'V16.3 발끝/뒤꿈치 관통: '+mm(now.worstToePenetration)+' / '+mm(now.worstHeelPenetration),
+    'V16.3 발끝·뒤꿈치 높이 차 최대: '+mm(now.maxToeHeelHeightDifference),
+    '지지 중 발굽 높이 편차: '+mm(old.maxStanceVerticalError)+' → '+mm(now.maxStanceVerticalError),
+    'V16.3 IK 최대 목표 위치 오차: '+mm(ik.maxTargetError),
+    'V16.3 IK 최대 발굽 방향 오차: '+(Number.isFinite(ik.maxHoofPitchErrorDeg)?ik.maxHoofPitchErrorDeg.toFixed(2)+'°':'측정 불가'),
+    'V16.3 관절 제한 도달 샘플: '+(Number.isFinite(ik.jointLimitHits)?ik.jointLimitHits:'측정 불가'),
+    '앞다리 피부 최대 신장: '+v.baseline.edge.fore.max.toFixed(3)+' → '+v.candidate.edge.fore.max.toFixed(3)+'배',
+    '뒷다리 피부 최대 신장: '+v.baseline.edge.hind.max.toFixed(3)+' → '+v.candidate.edge.hind.max.toFixed(3)+'배',
+    '주의: IK 단면 근사, 지면 접촉력/세계 이동 속도/Windows GPU 화면 검증은 미실시'
+   ];
+   document.getElementById('report').textContent=lines.join(String.fromCharCode(10));
+   const copy=document.getElementById('copy');copy.disabled=false;
+   copy.onclick=()=>{const data=JSON.stringify({version:'V16.3',selectedFoot:key,report:lines,measurement:report},null,2);
+    if(!navigator.clipboard?.writeText){show('클립보드 접근 불가: 보고서 텍스트를 직접 복사해 주세요.');return;}
+    navigator.clipboard.writeText(data).then(()=>{copy.textContent='검사 수치 복사 완료';}).catch(e=>show('복사 실패: '+String(e)));
+   };
   }
   choice.onchange=render;render();
  }
@@ -83,7 +96,7 @@ iframe{display:block;border:0;width:100%;height:100%}
   const poll=setInterval(()=>{
    if(failed){clearInterval(poll);return;}
    const w=iframe.contentWindow;
-   const error=w?.__horseV163Error||w?.__horseV162Error||w?.__horseV161Error||w?.__horseV16Error||w?.__horseV15Error||w?.__horseV15HairError||w?.__horseV14Error||
+   const error=w?.__horseV163Error||w?.__horseV162Error||w?.__horseV161Error||w?.__horseV16Error||w?.__horseV15Error||w?.__horseV15HairError||w?.__horseV163HairError||w?.__horseV163VisualError||w?.__horseV14Error||
     w?.__horseV139Error||w?.__horseV138Error||w?.__horseV137Error||w?.__horseV13Error||w?.__horseV12Error;
    if(error){clearInterval(poll);show('V16.3 초기화 오류: '+error);return;}
    if(w?.__horseV163?.ready&&w?.__horseV163QA?.run&&w?.__horseV163VisualQA?.ready){
