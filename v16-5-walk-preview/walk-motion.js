@@ -1,0 +1,133 @@
+/* HORSE RANCH V16.5 — integrated walk-only full-body candidate.
+ * Protected 19 joint GLB; earlier clips and native HairKey untouched.
+ * Torso 3D response is optimized before limb IK, never patched afterward.
+ */
+(function(){'use strict';
+const N=160,PI=Math.PI,TAU=2*PI,NAME='Walk_V16_5_PLANTED_WALK';let waits=0;
+const timer=setInterval(()=>{
+ const refs=['__horseV164','__horseV165Reference','__horseV165Contact','__horseV165Body','__horseV165IK'];
+ if(!window.__viewerReady||refs.some(x=>!window[x]||(x==='__horseV164'&&!window[x]?.ready))){
+  if(++waits>950){clearInterval(timer);window.__horseV165Error='Previous Walk or required V16.5 modules missing';}return;
+ }
+ clearInterval(timer);
+ try{
+  const g=object3d,select=document.getElementById('animations'),speed=document.getElementById('speed'),v15=window.__horseV15,v14=window.__horseV14;
+  const R=window.__horseV165Reference,C=window.__horseV165Contact,B=window.__horseV165Body,IK=window.__horseV165IK;
+  if(g?.skins?.[0]?.joints?.length!==19||window.__horseGaitV12?.belly?.corrected!==440||!select||!speed)
+   throw Error('Protected original GLB and viewer constraints are not met');
+  const base=g.animations.find(x=>x.name==='Walk_V15_BALANCED');
+  if(!base||base.channels.length!==19||g.animations.some(a=>a.name===NAME))throw Error('Walk reference mismatch');
+  const by=new Map(base.channels.map(ch=>[(g.doc.nodes[ch.node]?.name||'')+'|'+ch.path,ch]));
+  function sample(sam,t,n){
+   const a=sam.times,d=sam.data;if(a.length<2)throw Error('Insufficient sampler');
+   let lo=0,hi=a.length-1;
+   while(lo<hi){const m=(lo+hi)>>1;if(a[m]<t)lo=m+1;else hi=m;}
+   const j=lo,k=a[j]<t?j:Math.max(0,j-1),f=a[j]===a[k]?0:Math.max(0,Math.min(1,(t-a[k])/(a[j]-a[k])));
+   let v=Array.from({length:n},(_,i)=>d[k*n+i]*(1-f)+d[j*n+i]*f);
+   if(n===4){const norm=Math.hypot(...v);if(norm<.1)throw Error('Zero quaternion');v=v.map(x=>x/norm);}
+   return v;
+  }
+  const baseTranslation=by.get('Torso|translation')?.sam,baseRotation=by.get('Torso|rotation')?.sam;
+  if(!baseTranslation||!baseRotation)throw Error('Torso channels missing');
+  const times=Float32Array.from({length:N},(_,i)=>base.duration*i/N);
+  const body=Array.from({length:N},(_,i)=>{
+   const tr=sample(baseTranslation,times[i],3),q=sample(baseRotation,times[i],4);
+   return B.pose(i,{x:tr[0],y:tr[1],z:tr[2],pitch:2*Math.atan2(q[0],q[3])});
+  });
+  const feet=C.make(g),rig=IK.build(g,feet),baked=IK.bake(rig,R,C,feet,body);
+  const rigInspection=Object.fromEntries(Object.entries(rig.legs).map(([name,leg])=>[name,{
+   joints:leg.chain.map((bone,i)=>({bone,index:leg.ids[i],translation:leg.t[i].slice(),
+    restQuaternion:Array.from(g.nodes[leg.ids[i]].baseQ||[0,0,0,1])})),
+   distalOffset:leg.distal.slice(),soleVertices:feet.feet[name]?.soleCount,
+   orientationAssumption:'local X hinge: needs Blender source confirmation'
+  }]));
+  const oldClip=g.animations.find(a=>a.name==='Walk_V16_4_CONTACT_COORDINATED');
+  const previousMetrics=window.__horseV164?.proxyMetrics||{};
+  if(!oldClip||oldClip.channels.length!==19)throw Error('V16.4 fallback Walk missing');
+  const previousBy=new Map(oldClip.channels.map(ch=>[g.doc.nodes[ch.node]?.name+'|'+ch.path,ch]));
+  const fallbackLegs=[];
+  for(const [name,m] of Object.entries(baked.metrics)){
+   const prev=previousMetrics[name],bound=(prev?.maxWorldTargetError??.09);
+   const unsafe=!Object.values(m).filter(x=>typeof x==='number').every(Number.isFinite)||
+     m.cycleSeamDeg>18||m.maxWorldTargetError>.13||
+     m.maxWorldTargetError>bound*1.45+.008;
+   if(unsafe)fallbackLegs.push(name);
+  }
+  const fallbackJointNames=new Set(fallbackLegs.flatMap(name=>rig.legs[name].chain));
+  const map=new Map();
+  for(const [name,leg] of Object.entries(rig.legs))for(let j=0;j<leg.chain.length;j++)
+   map.set(leg.chain[j],baked.angles[name].map(frame=>frame[j]));
+  const multiplyX=(q,a)=>{const sn=Math.sin(a/2),cs=Math.cos(a/2),[x,y,z,w]=q,
+   out=[x*cs+w*sn,y*cs+z*sn,z*cs-y*sn,w*cs-x*sn],norm=Math.hypot(...out);
+   return out.map(x=>x/norm);};
+  let edited=0;
+  const channels=base.channels.map(ch=>{
+   const part=g.doc.nodes[ch.node]?.name||'',sam=ch.sam;
+   if(part==='Torso'&&ch.path==='translation'){
+    const data=new Float32Array(N*3);
+    for(let i=0;i<N;i++)data.set([body[i].x,body[i].y,body[i].z],i*3);
+    edited++;return {node:ch.node,path:ch.path,sam:{times,data,interpolation:'LINEAR'}};
+   }
+   if(part==='Torso'&&ch.path==='rotation'){
+    const data=new Float32Array(N*4);
+    for(let i=0;i<N;i++)data.set(body[i].q,i*4);
+    edited++;return {node:ch.node,path:ch.path,sam:{times,data,interpolation:'LINEAR'}};
+   }
+   if(ch.path==='rotation'&&fallbackJointNames.has(part)){
+    const previous=previousBy.get(part+'|rotation');
+    if(!previous?.sam?.data)throw Error('Fallback joint channel missing '+part);
+    edited++;return previous;
+   }
+   if(ch.path==='rotation'&&map.has(part)){
+    const data=new Float32Array(N*4),angles=map.get(part);
+    for(let i=0;i<N;i++)data.set([Math.sin(angles[i]/2),0,0,Math.cos(angles[i]/2)],i*4);
+    edited++;return {node:ch.node,path:ch.path,sam:{times,data,interpolation:'LINEAR'}};
+   }
+   if(ch.path==='rotation'&&['Neck','Head','Tail'].includes(part)){
+    const data=new Float32Array(N*4);
+    for(let i=0;i<N;i++){
+     const q=sample(sam,times[i],4);
+     data.set(multiplyX(q,body[i][part==='Neck'?'neck':part==='Head'?'head':'tail']),i*4);
+    }
+    edited++;return {node:ch.node,path:ch.path,sam:{times,data,interpolation:'LINEAR'}};
+   }
+   return ch;
+  });
+  if(edited!==19||channels.length!==19||channels.some(c=>!c.sam?.data||Array.from(c.sam.data).some(x=>!Number.isFinite(x))))
+   throw Error('Walk 19-channel export invalid');
+  const existing=g.animations.slice(),opts=Array.from(select.options),
+   walk=opts.find(x=>x.textContent.trim()==='Walk'),labels=opts.map(x=>x.textContent.trim());
+  if(labels.join('|')!=='정지 자세|Walk|Gallop Cruise|Gallop Fast|Gallop Sprint'||!walk)
+   throw Error('V16.1 viewer options changed');
+  const index=g.animations.length;g.animations.push({name:NAME,duration:base.duration,channels});walk.value=String(index);
+  const originalChoose=v15.setMode,originalSpeed=v15.setSpeed;
+  function selectWalk(){
+   select.value=String(index);select.dispatchEvent(new Event('change'));
+   v15.mode='walk';v15.selectedClip=NAME;v14.mode='walk';v14.selectedClip=NAME;
+  }
+  function setMode(id){
+   const state=originalChoose(id);if(id==='walk'){selectWalk();return {...state,mode:'walk',clip:NAME,period:base.duration};}
+   return state;
+  }
+  function setSpeed(value){
+   const state=originalSpeed(value);if(state?.mode==='walk'){
+    selectWalk();v15.speedKmh=Number(value);v14.speedKmh=Number(value);
+    return {...state,clip:NAME,period:base.duration};
+   }return state;
+  }
+  v15.setMode=setMode;v15.setSpeed=setSpeed;v14.setMode=setMode;v14.setSpeed=setSpeed;
+  select.addEventListener('change',()=>{if(select.value===String(index)){
+   v15.mode='walk';v15.selectedClip=NAME;v14.mode='walk';v14.selectedClip=NAME;
+  }});
+  for(const old of existing){if(g.animations.find(x=>x.name===old.name)!==old)throw Error('Previously saved clip overwritten '+old.name);}
+  const runtime={ready:true,version:'V16.5',clip:NAME,frames:N,clipIndex:index,previousClipIndex:g.animations.indexOf(oldClip),rigInspection,sole:window.__horseV164.sole,
+   groundY:feet.floor,rigJoints:19,originalGLBUnchanged:true,gallopsUnchanged:true,
+   proxyMetrics:baked.metrics,footTargets:C.validate(),fallbackLegs,
+   fallbackReason:'V16.5 IK excessive residual / cyclic seam; protected V16.4 joint channels retained',
+   gaitApproved:false,geometryQA:false,visualQA:false,
+   reference:'Real equine literature constrains timing, individual rig angles remain estimated',
+   physicalForcesMeasured:false,restoredBlender456Bones:false,viewerNominalSpeedNotPhysical:true};
+  window.__horseV165=runtime;selectWalk();
+ }catch(err){window.__horseV165Error=String(err?.message||err);console.error('V16.5 walk candidate',err);}
+},100);
+})();
