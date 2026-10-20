@@ -34,8 +34,21 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
+          name: v169-pages-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Wait for auto-generated default Pages run to finish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 32); do
+            state="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?branch=main&per_page=30" --jq "[.workflow_runs[] | select(.name == \"pages build and deployment\" and .head_sha == \"${GITHUB_SHA}\")][0].status // \"completed\"")"
+            echo "Default Pages run status: $state"
+            if [ "$state" = "completed" ]; then break; fi
+            sleep 5
+          done
       - name: Deploy browser-viewable preview
         id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: v169-pages-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Preview URL
         run: echo "Site -> ${{ steps.deployment.outputs.page_url }}v16-9-biomechanics-preview/"
