@@ -257,9 +257,62 @@
     assign(pose,joints,fit.angles);
     limbs[leg][0]=fit.angles;frames[0].data[leg]=fit;
    }
+   // Per-frame independent source-pose fallback caused abrupt jumps:
+   // >249mm stance displacement in real GLB testing vs 12.35mm baseline.
+   // Determine safe blend caps before audit, then bound alpha changes over
+   // the ENTIRE 160-frame periodic cycle without relaxing any skin gate.
+   const sourcePoses=Array.from({length:N},(_,i)=>basePose(g,clip,i,builder));
+   const boneIDs=Object.fromEntries(FEET.map(leg=>[leg,builder.chains[leg].map(
+    name=>g.doc.nodes.findIndex(n=>n.name===name))]));
+   const fitted=Object.fromEntries(FEET.map(leg=>[leg,limbs[leg].map(x=>x.slice())]));
+   function blendedPose(i,fraction){
+    const pose=sourcePoses[i].map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));
+    for(const leg of FEET)boneIDs[leg].forEach((id,k)=>{
+     const theta=angle(sourcePoses[i][id].q)*(1-fraction)+fitted[leg][i][k]*fraction;
+     pose[id].q=[Math.sin(theta/2),0,0,Math.cos(theta/2)];
+    });
+    return pose;
+   }
+   const caps=new Float64Array(N).fill(1);
+   for(let i=0;i<N;i++){
+    const original=fullSkin(a,sourcePoses[i]),oldEdge=edgeStat(a,original);
+    const oldStretch=Math.max(oldEdge.fore,oldEdge.hind);
+    const depth=coords=>Math.max(...FEET.map(leg=>Math.max(0,a.ground-
+      Math.min(...a.feet[leg].vertices.map(v=>coords[v*3+1])))));
+    const stanceError=coords=>Math.max(0,...FEET.filter(leg=>frames[i].data[leg].target.stance)
+      .map(leg=>Math.abs(coords[a.feet[leg].vertices[0]*3+1]-a.ground)));
+    const oldDepth=depth(original),oldError=stanceError(original);
+    let allowed=0;
+    for(const alpha of [1,.75,.5,.25,.125,.0625,.03125,0]){
+     if(alpha===0)break;
+     const coords=fullSkin(a,alpha===1?frames[i].pose:blendedPose(i,alpha));
+     const edge=edgeStat(a,coords);
+     if(Math.max(edge.fore,edge.hind)<=oldStretch+.02+1e-6&&
+        depth(coords)<=oldDepth+.001+1e-6&&
+        stanceError(coords)<=oldError+.001+1e-6){allowed=alpha;break;}
+    }
+    caps[i]=allowed;
+    if(i%8===7)await new Promise(resolve=>setTimeout(resolve,0));
+   }
+   // Largest cyclic Lipschitz envelope not exceeding any local safe cap.
+   const ALPHA_STEP=.0125;
+   const smoothAlpha=Array.from({length:N},(_,i)=>{
+    let value=1;
+    for(let j=0;j<N;j++){
+     const d=Math.abs(i-j),distance=Math.min(d,N-d);
+     value=Math.min(value,caps[j]+ALPHA_STEP*distance);
+    }
+    return clamp(value,0,1);
+   });
    let deepest=0,maxEdge=0,maxSeam=0,maxStanceError=0,slip=0,lateralSlip=0;
    let baselineDepth=0,baselineEdge=0,baselineStanceError=0,baselineSlip=0,minimumSwingClearance=Infinity;
    const backedOff=[];let smallestGuardAlpha=1;
+   for(let i=0;i<N;i++)if(smoothAlpha[i]<1-1e-9){
+    frames[i].pose=blendedPose(i,smoothAlpha[i]);
+    for(const leg of FEET)limbs[leg][i]=boneIDs[leg].map(id=>angle(frames[i].pose[id].q));
+    backedOff.push({frame:i,alpha:smoothAlpha[i]});
+    smallestGuardAlpha=Math.min(smallestGuardAlpha,smoothAlpha[i]);
+   }
    let worstPenetrationFrame=-1,worstStretchFrame=-1,worstStanceFrame=-1,worstSkinEdge=null;
    let worstPenetrationFoot=null,maxHoofTipPenetration=0,maxHoofHeelPenetration=0;
    const lastStanceZ={},lastStanceX={},baselineLastStanceZ={};
@@ -311,8 +364,12 @@
        const idx=g.doc.nodes.findIndex(n=>n.name===joint);return angle(pose[idx].q);
       });
      }
-     backedOff.push({frame:i,alpha});
-     smallestGuardAlpha=Math.min(smallestGuardAlpha,alpha);
+     // Extra backtrack only if skin geometry breaks monotonicity with alpha.
+     const totalAlpha=smoothAlpha[i]*alpha;
+     const existing=backedOff.find(x=>x.frame===i);
+     if(existing)existing.alpha=totalAlpha;
+     else backedOff.push({frame:i,alpha:totalAlpha});
+     smallestGuardAlpha=Math.min(smallestGuardAlpha,totalAlpha);
     }
     if(edgeNow>maxEdge){
      maxEdge=edgeNow;worstStretchFrame=i;
@@ -381,9 +438,9 @@
    const candidate={name:NAME,duration:clip.duration,channels};
    if(channels.length!==19)throw Error('Final Walk channels changed unexpectedly');
    const report={mode:'walk',frames:N,skinnedVertices:24314,hoofSamples:N*4*3,
-    optimizationMethod:'96-edge max-stretch-penalized shared-pose IK, V16.7 stance phase, full skin and contact guards',
+    optimizationMethod:'max-edge-aware IK and periodic Lipschitz full-skin no-regression backtracking',
     guard:{activationCount:backedOff.length,minInterpolationFraction:smallestGuardAlpha,
-     samples:backedOff.slice(0,16)},
+     samples:backedOff.slice(0,16),alphaLimitPerFrame:ALPHA_STEP,uncoupledMinCap:Math.min(...caps)},
     maximumPenetrationMm:1000*deepest,baselineMaximumPenetrationMm:1000*baselineDepth,
     maxStanceErrorMm:1000*maxStanceError,baselineMaxStanceErrorMm:1000*baselineStanceError,
     maximumSkinEdgeStretch:maxEdge,baselineMaximumSkinEdgeStretch:baselineEdge,
