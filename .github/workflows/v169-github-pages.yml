@@ -1,0 +1,39 @@
+name: V16.9 browser preview — GitHub Pages
+on:
+  push:
+    branches: [v16-9-biomechanics-preview]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: horse-ranch-v169-pages
+  cancel-in-progress: true
+
+jobs:
+  publish-preview:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}v16-9-biomechanics-preview/
+    steps:
+      - name: Check out V16.9 only (preserve main)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enable and configure GitHub Pages for public static preview
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - name: Upload original GLB and V16.9/other existing scripts
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - name: Deploy unchanged repo contents to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+      - name: Print clickable V16.9 preview
+        run: echo "V16.9 web URL — ${{ steps.deployment.outputs.page_url }}v16-9-biomechanics-preview/"
