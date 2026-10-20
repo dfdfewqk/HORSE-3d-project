@@ -258,7 +258,12 @@ iframe.addEventListener('load',()=>{
      '\\n좌우 지지발 흔들림: '+s.maxStanceLateralDeltaMm.toFixed(2)+'mm'+
      '\\n문제 프레임: 발굽 관통 #'+s.worstFrame.penetration+'('+s.worstFrame.hoof+
      '), 피부 신장 #'+s.worstFrame.skinStretch+', 접지 높이 #'+s.worstFrame.stanceError+
-     '\\n상태: '+(s.violations.length?s.violations.join(' / '):'수치상 통과, Chrome 시각 검증은 미완료')+
+     '\\n최악 피부 모서리: '+(s.worstSkinEdge?
+       s.worstSkinEdge.region+' #'+s.worstSkinEdge.frame+' (정점 '+s.worstSkinEdge.vertexA+
+       '–'+s.worstSkinEdge.vertexB+', '+s.worstSkinEdge.stretch.toFixed(3)+'배)':'미확인')+
+      '\\n이전→후보 지지발 높이 오차: '+s.baselineMaxStanceErrorMm.toFixed(2)+'→'+s.maxStanceErrorMm.toFixed(2)+'mm'+
+      '\\n이전→후보 지지발 편차: '+s.baselineLargestCorrectedStanceZDeltaMm.toFixed(2)+'→'+s.largestConsecutiveCorrectedStanceZDeltaMm.toFixed(2)+'mm'+
+      '\\n상태: '+(s.violations.length?s.violations.join(' / '):'수치상 통과, Chrome 시각 검증은 미완료')+
      '\\n실험 코드입니다. FAIL 시 후보 채택 금지. 정지/Walk/질주/원본 스킨을 변경하지 않습니다.';
    }catch(err){
     walkFitReport.textContent='Walk P1/P2 검사 FAIL: '+String(err?.message||err);

@@ -8,6 +8,12 @@
  const N=160,PI=Math.PI,RAD=PI/180,clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),
    frac=v=>((v%1)+1)%1,smooth=v=>{const t=clamp(v,0,1);return t*t*t*(t*(t*6-15)+10);};
  const FEET=['HindR','ForeR','HindL','ForeL'];
+ // Identical treadmill-relative stance progress to V16.7 gait-audit.js.
+ // Its shape is eased only at lift-off/landing, not a full-stance smoothstep.
+ const stanceProgress=u=>{
+  const t=clamp(u,0,1),a=.10,den=1-a;
+  return t<a?t*t/(2*a*den):t>1-a?1-(1-t)**2/(2*a*den):(t-a/2)/den;
+ };
  const LIMITS={fore:[[-43,31],[-3,47],[-19,20]],hind:[[-50,26],[-8,46],[-34,30],[-20,21]]};
  const NAME='Walk_V16_8_SKIN_CONTACT_CANDIDATE';
  function mul(a,b){
@@ -135,7 +141,7 @@
   if(mode!=='walk')throw Error('Only Walk can be fit before gallops');
   const touch=cfg.touch[leg],stance=cfg.stance[leg.startsWith('Fore')?'fore':'hind'],
    stride=cfg.stride[leg.startsWith('Fore')?'fore':'hind'],p=frac(i/N-touch),
-   planted=p<stance,u=planted?p/stance:(p-stance)/(1-stance),travel=planted?.5-smooth(u):smooth(u)-.5,
+   planted=p<stance,u=planted?p/stance:(p-stance)/(1-stance),travel=planted?.5-stanceProgress(u):smooth(u)-.5,
    lift=planted?0:.065*Math.sin(PI*u)**2,
    breakover=planted?smooth((u-.85)/.15):0;
   return {stance:planted,phase:p,targetY:ground+.002+lift+.003*breakover,
@@ -204,15 +210,18 @@
   return arr;
  }
  function edgeStat(a,coords){
-  const stats={};
+  const stats={},worst={};
   for(const kind of ['fore','hind']){
-   let max=0;for(const [u,v,d] of a.edges[kind]){
+   let max=0,location=null;
+   for(const [u,v,d] of a.edges[kind]){
     const U=u*3,V=v*3,r=Math.hypot(coords[U]-coords[V],coords[U+1]-coords[V+1],coords[U+2]-coords[V+2])/d;
     if(!Number.isFinite(r))throw Error('Nonfinite skin edge '+kind);
-    max=Math.max(max,r);
+    if(r>max){max=r;location={region:kind,vertexA:u,vertexB:v,stretch:r};}
    }
-   stats[kind]=max;
-  }return stats;
+   stats[kind]=max;worst[kind]=location;
+  }
+  stats.worst=worst;
+  return stats;
  }
  const state={status:'idle',progress:0,report:null,error:null};
  async function run(g,source,sole,builder,reader,notify){
@@ -246,11 +255,11 @@
     limbs[leg][0]=fit.angles;frames[0].data[leg]=fit;
    }
    let deepest=0,maxEdge=0,maxSeam=0,maxStanceError=0,slip=0,lateralSlip=0;
-   let baselineDepth=0,baselineEdge=0,minimumSwingClearance=Infinity;
+   let baselineDepth=0,baselineEdge=0,baselineStanceError=0,baselineSlip=0,minimumSwingClearance=Infinity;
    const backedOff=[];let smallestGuardAlpha=1;
-   let worstPenetrationFrame=-1,worstStretchFrame=-1,worstStanceFrame=-1;
+   let worstPenetrationFrame=-1,worstStretchFrame=-1,worstStanceFrame=-1,worstSkinEdge=null;
    let worstPenetrationFoot=null,maxHoofTipPenetration=0,maxHoofHeelPenetration=0;
-   const lastStanceZ={},lastStanceX={};
+   const lastStanceZ={},lastStanceX={},baselineLastStanceZ={};
    const violations=[];
    for(let i=0;i<N;i++){
     const originalPose=basePose(g,clip,i,builder),original=fullSkin(a,originalPose),
@@ -260,6 +269,10 @@
      const foot=a.feet[leg];
      return Math.max(0,a.ground-Math.min(...foot.vertices.map(index=>original[index*3+1])));
     }));
+    const stanceErrorFor=arr=>Math.max(0,...FEET.filter(leg=>frames[i].data[leg].target.stance)
+     .map(leg=>Math.abs(arr[a.feet[leg].vertices[0]*3+1]-a.ground)));
+    const oldStanceError=stanceErrorFor(original);
+    baselineStanceError=Math.max(baselineStanceError,oldStanceError);
     let pose=frames[i].pose,coords=fullSkin(a,pose),edge=edgeStat(a,coords),
      edgeNow=Math.max(edge.fore,edge.hind);
     const depthFor=arr=>Math.max(...FEET.map(leg=>Math.max(0,a.ground-
@@ -267,7 +280,8 @@
     // Preserve all 19 original channels. If a candidate frame regresses beyond
     // the baseline, use the largest safe interpolation fraction. It is NOT a
     // physical approval; any such backtracking is a mandatory audit failure.
-    if(edgeNow>oldStretch+.02||depthFor(coords)>oldDepth+.001){
+    if(edgeNow>oldStretch+.02||depthFor(coords)>oldDepth+.001||
+       stanceErrorFor(coords)>oldStanceError+.001){
      let selected=null,alpha=0;
      for(const fraction of [.75,.5,.25,.125,0]){
       const proposal=originalPose.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));
@@ -281,7 +295,8 @@
       }
       const data=fraction===0?original:fullSkin(a,proposal),e=fraction===0?oldEdge:edgeStat(a,data),
        stretch=Math.max(e.fore,e.hind);
-      if(stretch<=oldStretch+.02+1e-6&&depthFor(data)<=oldDepth+.001+1e-6){
+      if(stretch<=oldStretch+.02+1e-6&&depthFor(data)<=oldDepth+.001+1e-6&&
+         stanceErrorFor(data)<=oldStanceError+.001+1e-6){
        selected={proposal,data,edge:e,stretch};alpha=fraction;break;
       }
      }
@@ -296,7 +311,11 @@
      backedOff.push({frame:i,alpha});
      smallestGuardAlpha=Math.min(smallestGuardAlpha,alpha);
     }
-    if(edgeNow>maxEdge){maxEdge=edgeNow;worstStretchFrame=i;}
+    if(edgeNow>maxEdge){
+     maxEdge=edgeNow;worstStretchFrame=i;
+     const kind=edge.fore>=edge.hind?'fore':'hind';
+     worstSkinEdge=edge.worst[kind]?{frame:i,...edge.worst[kind]}:null;
+    }
     for(const leg of FEET){
      const f=a.feet[leg],v=f.vertices.map(index=>[coords[index*3],coords[index*3+1],coords[index*3+2]]),
       target=frames[i].data[leg].target,minY=Math.min(...v.map(p=>p[1])),
@@ -312,7 +331,11 @@
       const error=Math.abs(v[0][1]-a.ground);
       if(error>maxStanceError){maxStanceError=error;worstStanceFrame=i;}
       const u=target.phase/builder.configs.walk.stance[leg.startsWith('Fore')?'fore':'hind'];
-      const correctedZ=v[0][2]+target.stride*smooth(u);
+      const correctedZ=v[0][2]+target.stride*stanceProgress(u);
+      const baselineCorrectedZ=original[f.vertices[0]*3+2]+target.stride*stanceProgress(u);
+      if(i&&frames[i-1].data[leg].target.stance&&baselineLastStanceZ[leg]!==undefined)
+       baselineSlip=Math.max(baselineSlip,Math.abs(baselineCorrectedZ-baselineLastStanceZ[leg]));
+      baselineLastStanceZ[leg]=baselineCorrectedZ;
       if(i&&frames[i-1].data[leg].target.stance&&lastStanceZ[leg]!==undefined)
        slip=Math.max(slip,Math.abs(correctedZ-lastStanceZ[leg]));
       lastStanceZ[leg]=correctedZ;
@@ -337,6 +360,8 @@
    if(minimumSwingClearance<-.005)violations.push('swing foot ground penetration '+(1000*minimumSwingClearance).toFixed(1)+'mm');
    if(deepest>baselineDepth+.001)violations.push('penetration regression vs V16.7 baseline');
    if(maxEdge>baselineEdge+.02)violations.push('skin stretch regression vs V16.7 baseline');
+   if(maxStanceError>baselineStanceError+.001)violations.push('stance contact regression vs V16.7 baseline');
+   if(slip>baselineSlip+.001)violations.push('stance slide regression vs V16.7 baseline');
    if(backedOff.length)violations.push('regression guard active on '+backedOff.length+' frames; experimental gait not approved');
    const times=Float32Array.from({length:N},(_,i)=>i*clip.duration/N);
    const channels=clip.channels.map(ch=>{
@@ -353,20 +378,22 @@
    const candidate={name:NAME,duration:clip.duration,channels};
    if(channels.length!==19)throw Error('Final Walk channels changed unexpectedly');
    const report={mode:'walk',frames:N,skinnedVertices:24314,hoofSamples:N*4*3,
-    optimizationMethod:'sequential shared-pose skin-aware IK; cyclic frame zero re-fit; full-mesh baseline regression envelope',
+    optimizationMethod:'shared-pose skin-aware IK, V16.7-consistent stance phase, contact+skin baseline protection',
     guard:{activationCount:backedOff.length,minInterpolationFraction:smallestGuardAlpha,
      samples:backedOff.slice(0,16)},
     maximumPenetrationMm:1000*deepest,baselineMaximumPenetrationMm:1000*baselineDepth,
-    maxStanceErrorMm:1000*maxStanceError,
+    maxStanceErrorMm:1000*maxStanceError,baselineMaxStanceErrorMm:1000*baselineStanceError,
     maximumSkinEdgeStretch:maxEdge,baselineMaximumSkinEdgeStretch:baselineEdge,
     maximumCycleSeamDeg:maxSeam,
     largestConsecutiveCorrectedStanceZDeltaMm:1000*slip,
+     baselineLargestCorrectedStanceZDeltaMm:1000*baselineSlip,
     maxStanceLateralDeltaMm:1000*lateralSlip,
     minSwingClearanceMm:1000*minimumSwingClearance,
     maxToePenetrationMm:1000*maxHoofTipPenetration,maxHeelPenetrationMm:1000*maxHoofHeelPenetration,
     worstFrame:{penetration:worstPenetrationFrame,hoof:worstPenetrationFoot,
      skinStretch:worstStretchFrame,stanceError:worstStanceFrame},
     edgeCounts:a.edgeCounts,localEdgeSamples:Object.fromEntries(FEET.map(l=>[l,a.legEdges[l].length])),
+     worstSkinEdge,
     status:violations.length?'FAIL':'NUMERIC_GATE_PASS_VISUAL_NOT_VERIFIED',violations,
     nativeModelPreserved:true,gate:{penetrationMm:5,stanceHeightMm:12,
      stanceStepMm:15,edgeStretch:1.20,angleSeamDeg:12},
