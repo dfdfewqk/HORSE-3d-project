@@ -24,6 +24,14 @@ jobs:
           sleep 3
       - name: Execute 1280 source-gait and 160 new Walk evaluations
         run: node v16-9-biomechanics-preview/automated-qa.cjs
+      - name: Record actual GLB movement for direct visual comparison
+        if: always()
+        continue-on-error: true
+        run: node v16-9-biomechanics-preview/record-review.cjs
+      - name: Probe independent public CDN preview
+        if: always()
+        continue-on-error: true
+        run: node v16-9-biomechanics-preview/public-preview-probe.cjs
       - name: Upload actual numerical results and screenshots
         if: always()
         uses: actions/upload-artifact@v4
