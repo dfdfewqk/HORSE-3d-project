@@ -76,3 +76,28 @@ Detected penetration was worst at proxy frame 4, fore-left; maximum edge stretch
 **Mandatory next checks:** execute 160-frame full-runtime V16.7 Walk source + candidate with corrected weights, then original 8-clips ×160 audit and real Chromium synchronized UI tests; export failing frames. The current 19 X-axis-hinge rig remains an under-actuated approximation; if penetration, true hoof attitude and skin length cannot jointly pass, rebuild the WEB rig/skin from protected Blender source in a separate candidate rather than silently expanding joint limits.
 
 **Safety of existing assets:** modified files are only under `v16-8-full-gait-preview/`. Existing `main` and V14–V16.7 folders remain unchanged. This QA and Git stage do **not** constitute a publicly validated V16.8 preview/release.
+
+## 2026-10-20 — P1/P2 coupled four-limb + strict no-regression envelope
+
+Implemented in `walk-contact-fit.js` only (the protected `main`, original GLB, V12 belly correction, V15–V16.7 clips and Idle are untouched).
+
+1. Each limb optimizer now sees the already-updated pose of the other limbs in that SAME frame, rather than testing every limb against a fresh unmodified torso/limb pose. A limited frame-zero wrap re-fit references the final cycle frame.
+2. After fitting, for every frame the full 24,314-vertex corrected skin is evaluated against the corresponding ORIGINAL source frame. If the combined candidate exceeds source-frame maximum regional edge stretch by >0.02x or toe/heel/contact penetration by >1mm, the solver searches conservative interpolation fractions 0.75, 0.50, 0.25, 0.125, 0.00 until the regression envelope holds.
+3. Any such backtracking forces an explicit FAIL and **no candidate clip is returned or cached for playback**. This prevents quietly calling original-pose fallback a success.
+4. The existing UI reports backtracked frame counts, fraction and blocked output. Physical force, Chrome GPU motion, and equine plausibility remain UNVERIFIED.
+
+**Independent actual GLB regression smoke test**: decoded original embedded binary glTF, then reproduced 440 V12 abdominal weight edits and 3107/2932 corrected regional edge cohorts; tested 8 coarse frames of the original `Walk_PREVIEW` clip aliased as an isolated proxy. These are NOT the production V16.7 `Walk_V16_7_FOOTFALL`, and are not a 160-frame runtime validation.
+
+| Diagnostic, identical isolated fixture | Earlier skin-aware solver | Four-limb coupled | Coupled + safety envelope |
+|---|---:|---:|---:|
+| Deepest hoof below ground | 8.418 mm | 8.418 mm | 10.644 mm |
+| Max corrected mesh edge stretch | 1.323x | 1.323x | **1.2045x** |
+| Max consecutive virtual stance step | 120.023 mm | 97.721 mm | 149.642 mm |
+| End/start joint angle difference | 9.649° | 10.149° | 7.274° |
+| Worst stance-contact height | 30.854 mm | 30.854 mm | 30.484 mm |
+| Backtracked frames | none | none | 6 of 8 |
+| Candidate exposed for use | not approved | not approved | **NO — blocked** |
+
+8-frame safety-envelope test status: **FAIL**. Thresholds still missed (hoof 5mm, edge 1.20x, stance 12mm, virtual stance step 15mm). Strong caution: 8-frame stride-slip proxies are heavily discretized and must NOT be treated as 160-frame motion evidence. Skin improvements must not be mistaken for overall locomotion improvement; stance movement worsened. This stage is exploratory only.
+
+Next gates remain: full corrected-runtime 160-frame source/Walk comparison, full 1280-frame 8-gait audit, visual capture on real Chrome, and evaluation of a rig change if 19 X-hinge bones cannot meet coupled geometry limits.

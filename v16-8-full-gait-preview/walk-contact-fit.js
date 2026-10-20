@@ -159,12 +159,15 @@
   value+=.35*localSkin.penalty;
   return value;
  }
- function optimizeFrame(a,builder,clip,leg,i,neighbor){
+ function optimizeFrame(a,builder,clip,leg,i,neighbor,sharedPose){
+  // Fit each limb against the ACTUAL already-composed frame, not against
+  // a fresh, independent copy of the source pose for every limb.
   const kind=leg.startsWith('Fore')?'fore':'hind',ids=builder.chains[leg].map(n=>{
    const ix=a.g.doc.nodes.findIndex(x=>x.name===n);
    if(ix<0)throw Error('Missing rig joint '+n);return ix;
   });
-  const initial=basePose(a.g,clip,i,builder),
+  const initial=sharedPose?sharedPose.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()})):
+   basePose(a.g,clip,i,builder),
    old=ids.map(id=>angle(initial[id].q)),current=old.slice(),
    bounds=LIMITS[kind].map(x=>x.map(v=>v*RAD)),target=goal('walk',leg,i,a.feet[leg],a.ground,builder.configs.walk);
   function score(values){
@@ -225,7 +228,7 @@
    for(let i=0;i<N;i++){
     const pose=basePose(g,clip,i,builder),data={};
     for(const leg of FEET){
-     const f=optimizeFrame(a,builder,clip,leg,i,previous[leg]);
+     const f=optimizeFrame(a,builder,clip,leg,i,previous[leg],pose);
      const joints=builder.chains[leg].map(name=>g.doc.nodes.findIndex(n=>n.name===name));
      assign(pose,joints,f.angles);previous[leg]=f.angles;limbs[leg].push(f.angles);data[leg]=f;
     }
@@ -233,17 +236,66 @@
     state.progress=(i+1)/(2*N);if(notify)notify(state.progress);
     if(i%4===3)await new Promise(resolve=>setTimeout(resolve,0));
    }
+   // Cyclic re-fit at wrap point: frame zero sees the actual fitted frame 159.
+   // Only the first frame is revisited; keep native clip and all prior files intact.
+   // The full 160-frame skin audit below remains the release gate.
+   for(const leg of FEET){
+    const pose=frames[0].pose,fit=optimizeFrame(a,builder,clip,leg,0,limbs[leg][N-1],pose);
+    const joints=builder.chains[leg].map(name=>g.doc.nodes.findIndex(n=>n.name===name));
+    assign(pose,joints,fit.angles);
+    limbs[leg][0]=fit.angles;frames[0].data[leg]=fit;
+   }
    let deepest=0,maxEdge=0,maxSeam=0,maxStanceError=0,slip=0,lateralSlip=0;
    let baselineDepth=0,baselineEdge=0,minimumSwingClearance=Infinity;
+   const backedOff=[];let smallestGuardAlpha=1;
    let worstPenetrationFrame=-1,worstStretchFrame=-1,worstStanceFrame=-1;
    let worstPenetrationFoot=null,maxHoofTipPenetration=0,maxHoofHeelPenetration=0;
    const lastStanceZ={},lastStanceX={};
    const violations=[];
    for(let i=0;i<N;i++){
-    const pose=frames[i].pose,coords=fullSkin(a,pose),edge=edgeStat(a,coords);
-    const original=fullSkin(a,basePose(g,clip,i,builder)),oldEdge=edgeStat(a,original);
-    baselineEdge=Math.max(baselineEdge,oldEdge.fore,oldEdge.hind);
-    const edgeNow=Math.max(edge.fore,edge.hind);
+    const originalPose=basePose(g,clip,i,builder),original=fullSkin(a,originalPose),
+     oldEdge=edgeStat(a,original),oldStretch=Math.max(oldEdge.fore,oldEdge.hind);
+    baselineEdge=Math.max(baselineEdge,oldStretch);
+    const oldDepth=Math.max(...FEET.map(leg=>{
+     const foot=a.feet[leg];
+     return Math.max(0,a.ground-Math.min(...foot.vertices.map(index=>original[index*3+1])));
+    }));
+    let pose=frames[i].pose,coords=fullSkin(a,pose),edge=edgeStat(a,coords),
+     edgeNow=Math.max(edge.fore,edge.hind);
+    const depthFor=arr=>Math.max(...FEET.map(leg=>Math.max(0,a.ground-
+      Math.min(...a.feet[leg].vertices.map(index=>arr[index*3+1])))));
+    // Preserve all 19 original channels. If a candidate frame regresses beyond
+    // the baseline, use the largest safe interpolation fraction. It is NOT a
+    // physical approval; any such backtracking is a mandatory audit failure.
+    if(edgeNow>oldStretch+.02||depthFor(coords)>oldDepth+.001){
+     let selected=null,alpha=0;
+     for(const fraction of [.75,.5,.25,.125,0]){
+      const proposal=originalPose.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));
+      for(const leg of FEET){
+       builder.chains[leg].forEach((joint,k)=>{
+        const idx=g.doc.nodes.findIndex(n=>n.name===joint);
+        const before=angle(originalPose[idx].q),after=limbs[leg][i][k],
+         theta=before+(after-before)*fraction;
+        proposal[idx].q=[Math.sin(theta/2),0,0,Math.cos(theta/2)];
+       });
+      }
+      const data=fraction===0?original:fullSkin(a,proposal),e=fraction===0?oldEdge:edgeStat(a,data),
+       stretch=Math.max(e.fore,e.hind);
+      if(stretch<=oldStretch+.02+1e-6&&depthFor(data)<=oldDepth+.001+1e-6){
+       selected={proposal,data,edge:e,stretch};alpha=fraction;break;
+      }
+     }
+     if(!selected)throw Error('No safe baseline-preserving interpolation found at frame '+i);
+     pose=selected.proposal;coords=selected.data;edge=selected.edge;edgeNow=selected.stretch;
+     frames[i].pose=pose;
+     for(const leg of FEET){
+      limbs[leg][i]=builder.chains[leg].map(joint=>{
+       const idx=g.doc.nodes.findIndex(n=>n.name===joint);return angle(pose[idx].q);
+      });
+     }
+     backedOff.push({frame:i,alpha});
+     smallestGuardAlpha=Math.min(smallestGuardAlpha,alpha);
+    }
     if(edgeNow>maxEdge){maxEdge=edgeNow;worstStretchFrame=i;}
     for(const leg of FEET){
      const f=a.feet[leg],v=f.vertices.map(index=>[coords[index*3],coords[index*3+1],coords[index*3+2]]),
@@ -252,8 +304,8 @@
      if(penetration>deepest){deepest=penetration;worstPenetrationFrame=i;worstPenetrationFoot=leg;}
      maxHoofTipPenetration=Math.max(maxHoofTipPenetration,Math.max(0,a.ground-v[1][1]));
      maxHoofHeelPenetration=Math.max(maxHoofHeelPenetration,Math.max(0,a.ground-v[2][1]));
-     const oldDepth=Math.max(0,a.ground-Math.min(...f.vertices.map(index=>original[index*3+1])));
-     baselineDepth=Math.max(baselineDepth,oldDepth);
+     const oldLegDepth=Math.max(0,a.ground-Math.min(...f.vertices.map(index=>original[index*3+1])));
+     baselineDepth=Math.max(baselineDepth,oldLegDepth);
      if(!target.stance)
       minimumSwingClearance=Math.min(minimumSwingClearance,minY-a.ground);
      if(target.stance){
@@ -285,6 +337,7 @@
    if(minimumSwingClearance<-.005)violations.push('swing foot ground penetration '+(1000*minimumSwingClearance).toFixed(1)+'mm');
    if(deepest>baselineDepth+.001)violations.push('penetration regression vs V16.7 baseline');
    if(maxEdge>baselineEdge+.02)violations.push('skin stretch regression vs V16.7 baseline');
+   if(backedOff.length)violations.push('regression guard active on '+backedOff.length+' frames; experimental gait not approved');
    const times=Float32Array.from({length:N},(_,i)=>i*clip.duration/N);
    const channels=clip.channels.map(ch=>{
     const node=a.g.doc.nodes[ch.node].name;
@@ -300,6 +353,9 @@
    const candidate={name:NAME,duration:clip.duration,channels};
    if(channels.length!==19)throw Error('Final Walk channels changed unexpectedly');
    const report={mode:'walk',frames:N,skinnedVertices:24314,hoofSamples:N*4*3,
+    optimizationMethod:'sequential shared-pose skin-aware IK; cyclic frame zero re-fit; full-mesh baseline regression envelope',
+    guard:{activationCount:backedOff.length,minInterpolationFraction:smallestGuardAlpha,
+     samples:backedOff.slice(0,16)},
     maximumPenetrationMm:1000*deepest,baselineMaximumPenetrationMm:1000*baselineDepth,
     maxStanceErrorMm:1000*maxStanceError,
     maximumSkinEdgeStretch:maxEdge,baselineMaximumSkinEdgeStretch:baselineEdge,
@@ -316,8 +372,10 @@
      stanceStepMm:15,edgeStretch:1.20,angleSeamDeg:12},
     limits:'19 X-axis hinges cannot physically guarantee 3D hoof attitude or friction; 160-frame proxy ground relative displacement'};
    // Keep validated candidate in memory only. A numeric pass is not a production approval.
-   state.report=report;state.candidate=candidate;state.status='finished';
-   return {report,candidate}; 
+   state.report=report;
+   state.candidate=violations.length?null:candidate;
+   state.status='finished';
+   return {report,candidate:state.candidate}; 
   }catch(e){state.error=String(e?.stack||e);state.status='error';throw e;}
  }
  function runViewer(notify){

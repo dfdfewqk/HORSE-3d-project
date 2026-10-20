@@ -250,6 +250,9 @@ iframe.addEventListener('load',()=>{
      '\\n최대 스킨 변형 (기존→후보): '+s.baselineMaximumSkinEdgeStretch.toFixed(3)+'→'+s.maximumSkinEdgeStretch.toFixed(3)+'배'+
      '\\n발끝/뒤꿈치 관통: '+s.maxToePenetrationMm.toFixed(2)+' / '+s.maxHeelPenetrationMm.toFixed(2)+'mm'+
      '\\n공중 회수 최저 여유: '+s.minSwingClearanceMm.toFixed(2)+'mm'+
+     '\\n회귀 방지 작동: '+s.guard.activationCount+'프레임 · 최소 보정 비율 '+s.guard.minInterpolationFraction.toFixed(2)+
+     ' · 해당 프레임 '+s.guard.samples.map(x=>x.frame).join(',')+
+     '\\n원본보다 악화되는 프레임은 보정 강도를 낮추며 하나라도 발견되면 적용을 거부합니다.'+
      '\\n주기 경계 최대 각도: '+s.maximumCycleSeamDeg.toFixed(2)+'도'+
      '\\n보폭 보정 지지발 편차: '+s.largestConsecutiveCorrectedStanceZDeltaMm.toFixed(2)+'mm'+
      '\\n좌우 지지발 흔들림: '+s.maxStanceLateralDeltaMm.toFixed(2)+'mm'+
