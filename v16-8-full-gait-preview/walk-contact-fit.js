@@ -264,7 +264,15 @@
    const sourcePoses=Array.from({length:N},(_,i)=>basePose(g,clip,i,builder));
    const boneIDs=Object.fromEntries(FEET.map(leg=>[leg,builder.chains[leg].map(
     name=>g.doc.nodes.findIndex(n=>n.name===name))]));
-   const fitted=Object.fromEntries(FEET.map(leg=>[leg,limbs[leg].map(x=>x.slice())]));
+   // Use a periodic five-tap joint trajectory as the tentative motion.
+   // Both sides of frame zero share the same cyclic neighborhood; smoothing
+   // is evaluated with the same ORIGINAL full-mesh contact/skin safety gate.
+   const fitted=Object.fromEntries(FEET.map(leg=>{
+    const seq=limbs[leg];
+    return [leg,seq.map((row,i)=>row.map((v,k)=>
+     .50*v+.20*(seq[(i+N-1)%N][k]+seq[(i+1)%N][k])+
+     .05*(seq[(i+N-2)%N][k]+seq[(i+2)%N][k])))];
+   }));
    function blendedPose(i,fraction){
     const pose=sourcePoses[i].map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));
     for(const leg of FEET)boneIDs[leg].forEach((id,k)=>{
@@ -272,6 +280,10 @@
      pose[id].q=[Math.sin(theta/2),0,0,Math.cos(theta/2)];
     });
     return pose;
+   }
+   for(let i=0;i<N;i++){
+    frames[i].pose=blendedPose(i,1);
+    for(const leg of FEET)limbs[leg][i]=fitted[leg][i].slice();
    }
    const caps=new Float64Array(N).fill(1);
    for(let i=0;i<N;i++){
@@ -408,13 +420,24 @@
     state.progress=.5+(i+1)/(2*N);if(notify)notify(state.progress);
     if(i%4===3)await new Promise(resolve=>setTimeout(resolve,0));
    }
-   for(const leg of FEET){const seq=limbs[leg];
+   let maxAngularStep=0,baselineAngularStep=0;
+   for(const leg of FEET){
+    const seq=limbs[leg],ids=boneIDs[leg];
+    for(let k=0;k<seq[0].length;k++)for(let i=0;i<N;i++){
+     const prev=(i+N-1)%N;
+     maxAngularStep=Math.max(maxAngularStep,Math.abs(seq[i][k]-seq[prev][k])/RAD);
+     const sourceNow=angle(sourcePoses[i][ids[k]].q),
+      sourcePrev=angle(sourcePoses[prev][ids[k]].q);
+     baselineAngularStep=Math.max(baselineAngularStep,Math.abs(sourceNow-sourcePrev)/RAD);
+    }
     for(let k=0;k<seq[0].length;k++)maxSeam=Math.max(maxSeam,Math.abs(seq[N-1][k]-seq[0][k])/RAD);
    }
    if(deepest>.005)violations.push('hoof penetration '+(deepest*1000).toFixed(1)+'mm');
    if(maxStanceError>.012)violations.push('stance vertical error '+(maxStanceError*1000).toFixed(1)+'mm');
    if(maxEdge>1.20)violations.push('skinned edge stretch '+maxEdge.toFixed(3)+'x');
    if(maxSeam>12)violations.push('cycle seam '+maxSeam.toFixed(1)+' degrees');
+   if(maxAngularStep>Math.max(5,baselineAngularStep+1))
+    violations.push('joint-frame jump '+maxAngularStep.toFixed(2)+' degrees');
    if(slip>.015)violations.push('stride-corrected stance delta '+(1000*slip).toFixed(1)+'mm');
    if(lateralSlip>.015)violations.push('lateral stance-foot slide '+(1000*lateralSlip).toFixed(1)+'mm');
    if(minimumSwingClearance<-.005)violations.push('swing foot ground penetration '+(1000*minimumSwingClearance).toFixed(1)+'mm');
@@ -438,13 +461,14 @@
    const candidate={name:NAME,duration:clip.duration,channels};
    if(channels.length!==19)throw Error('Final Walk channels changed unexpectedly');
    const report={mode:'walk',frames:N,skinnedVertices:24314,hoofSamples:N*4*3,
-    optimizationMethod:'max-edge-aware IK and periodic Lipschitz full-skin no-regression backtracking',
+    optimizationMethod:'five-tap cyclic limb trajectory smoothing, max-edge-aware IK and periodic Lipschitz no-regression guard',
     guard:{activationCount:backedOff.length,minInterpolationFraction:smallestGuardAlpha,
      samples:backedOff.slice(0,16),alphaLimitPerFrame:ALPHA_STEP,uncoupledMinCap:Math.min(...caps)},
     maximumPenetrationMm:1000*deepest,baselineMaximumPenetrationMm:1000*baselineDepth,
     maxStanceErrorMm:1000*maxStanceError,baselineMaxStanceErrorMm:1000*baselineStanceError,
     maximumSkinEdgeStretch:maxEdge,baselineMaximumSkinEdgeStretch:baselineEdge,
     maximumCycleSeamDeg:maxSeam,
+    maximumJointAngularStepDeg:maxAngularStep,baselineJointAngularStepDeg:baselineAngularStep,
     largestConsecutiveCorrectedStanceZDeltaMm:1000*slip,
      baselineLargestCorrectedStanceZDeltaMm:1000*baselineSlip,
     maxStanceLateralDeltaMm:1000*lateralSlip,
