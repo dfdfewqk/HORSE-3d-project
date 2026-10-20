@@ -1,0 +1,33 @@
+name: V16.8 real-GLB browser QA
+on:
+  push:
+    branches: [v16-8-integration-unverified]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and Playwright
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Serve unchanged original GLB and V16.8 viewer
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/v168-http.log 2>&1 &
+          sleep 3
+      - name: Execute 1280 source-gait and 160 new Walk evaluations
+        run: node v16-8-full-gait-preview/automated-qa.cjs
+      - name: Upload actual numerical results and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v168-actual-glb-evidence
+          path: v168-qa-artifacts/
+          if-no-files-found: warn
