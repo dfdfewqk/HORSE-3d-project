@@ -384,7 +384,19 @@
   const old=window.__horseV165,ref=window.__horseV167Builder;
   if(!old?.ready||!ref?.build||window.__horseGaitV12?.belly?.corrected!==440)
    throw Error('V16.8 legacy body / belly correction / gait builder missing');
-  return run(object3d,window.__horseV167,{feet:old.sole,floor:old.groundY},ref,readAccessor,notify);
+  // The old V16.5 sole property contains a summary, not the rich geometry.
+   // Re-read immutable original source, validate all original hoof indices.
+   const scanner=window.__horseV16Targets,measured=scanner?.collect?.(object3d);
+   if(measured?.bodyVertexCount!==24314||!Number.isFinite(measured?.floor)||
+      Math.abs(measured.floor-old.groundY)>.002)
+    throw Error('Original hoof scan/floor mismatch');
+   for(const leg of FEET){
+    const oldFoot=old.sole?.[leg],f=measured.feet?.[leg];
+    if(!oldFoot||!f||oldFoot.contactVertex!==f.contactVertex||
+       oldFoot.toeVertex!==f.frontVertex||oldFoot.heelVertex!==f.backVertex)
+     throw Error('Protected hoof index mismatch: '+leg);
+   }
+   return run(object3d,window.__horseV167,{feet:measured.feet,floor:measured.floor},ref,readAccessor,notify);
  }
  return {N,NAME,FEET,prepare,measure,goal,run,runViewer,state};
 });

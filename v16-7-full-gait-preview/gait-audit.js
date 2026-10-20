@@ -46,9 +46,21 @@ function prepare(){
  if(edges.fore.length!==3107||edges.hind.length!==2932)throw Error('Skin cohort count regression');
  const clips=Object.fromEntries(Object.entries(names).map(([k,n])=>[k,g.animations.find(a=>a.name===n)]));
  if(Object.values(clips).some(x=>!x||x.channels.length!==19))throw Error('Walk candidate missing');
- const old=window.__horseV165;
- if(!old?.sole||!Number.isFinite(old.groundY))throw Error('V16.5 original sole scanner missing');
- return {g,pos,j,w,parent,bones,ibm,clips,edges,feet:old.sole,ground:old.groundY};
+ const old=window.__horseV165,scanner=window.__horseV16Targets;
+  if(!old?.sole||!Number.isFinite(old.groundY)||!scanner?.collect)
+   throw Error('V16 original scanner/V16.5 summary unavailable');
+  // Prior runtimes retain only contactVertex/toeVertex/heelVertex; the full
+  // scanner uses contactVertex/frontVertex/backVertex and other geometry.
+  const measured=scanner.collect(g);
+  if(measured.bodyVertexCount!==24314||Math.abs(measured.floor-old.groundY)>.002)
+   throw Error('Protected GLB ground reference changed');
+  for(const name of ['HindR','ForeR','HindL','ForeL']){
+   const prior=old.sole[name],f=measured.feet[name];
+   if(!prior||!f||prior.contactVertex!==f.contactVertex||
+      prior.toeVertex!==f.frontVertex||prior.heelVertex!==f.backVertex)
+    throw Error('Protected hoof index mismatch: '+name);
+  }
+  return {g,pos,j,w,parent,bones,ibm,clips,edges,feet:measured.feet,ground:measured.floor};
 }
 function deform(a,clip,frame){
  const {g,pos,j,w,parent,bones,ibm}=a,t=frame*clip.duration/N;
