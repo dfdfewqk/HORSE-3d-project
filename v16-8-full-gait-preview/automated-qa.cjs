@@ -35,7 +35,7 @@ let browser;
    if(errors.length)throw Error(errors.join('\n'));
    if(!w.__horseV168Bridge?.ready||!w.__horseV167QA?.run||!w.__horseV168WalkFit?.runViewer)
     throw Error('V16.8 modules unavailable after ready signal');
-   const g=w.object3d,r=w.__horseV167;
+   const g=w.eval('object3d'),r=w.__horseV167;
    return {skinJoints:g.skins[0].joints.length,bellyCorrected:w.__horseGaitV12?.belly?.corrected,
     clipsAdded:r.addedClips,nativeWalk:g.animations.some(a=>a.name==='Walk_V16_7_FOOTFALL'),
     originalGlbPreserved:r.originalGlbPreserved,previousGaitsPreserved:r.originalGaitsPreserved};
