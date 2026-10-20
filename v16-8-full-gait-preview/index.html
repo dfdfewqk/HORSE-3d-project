@@ -46,7 +46,7 @@ pre{font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap;word-break:break-
   <div style="margin-top:8px"><button id="auditButton" disabled>V16.7 GLB 1280프레임 CPU 검사</button> <a href="./?audit" id="auditLink">검사 주소</a></div>
   <pre id="auditReport">GLB 스키닝 검사는 아직 실시되지 않았습니다.</pre>
   <div style="margin-top:8px"><button id="walkFitButton" disabled>Walk 실제 스킨 접지 보정 및 160프레임 검사</button></div>
-  <pre id="walkFitReport">P1/P2 후보를 실행하지 않았습니다. 실험 결과가 나와도 실제 Chrome 시각 검증 전에는 합격으로 취급하지 않습니다.</pre>
+  <pre id="walkFitReport">P1/P2 실험 후보는 피부 신장을 관절 탐색 과정에 반영합니다. 160프레임 CPU 검사를 완료해도 Chrome 시각검증 전까지는 미승인 상태입니다. 기준을 하나라도 넘으면 실제 애니메이션에 자동 적용하지 않습니다.</pre>
   <div id="frameTools">
    <select id="camera"><option value="right">오른쪽 측면</option><option value="left">왼쪽 측면</option><option value="front">정면</option><option value="rear">후면</option><option value="quarter">45도</option></select>
    <label for="frame">프레임 <span id="frameNumber">0</span>/159</label><input type="range" id="frame" min="0" max="159" value="0"/>
@@ -248,10 +248,15 @@ iframe.addEventListener('load',()=>{
      '\\n발굽 관통 (기존→후보): '+s.baselineMaximumPenetrationMm.toFixed(2)+'→'+s.maximumPenetrationMm.toFixed(2)+'mm'+
      '\\n접지 높이 오차: '+s.maxStanceErrorMm.toFixed(2)+'mm'+
      '\\n최대 스킨 변형 (기존→후보): '+s.baselineMaximumSkinEdgeStretch.toFixed(3)+'→'+s.maximumSkinEdgeStretch.toFixed(3)+'배'+
+     '\\n발끝/뒤꿈치 관통: '+s.maxToePenetrationMm.toFixed(2)+' / '+s.maxHeelPenetrationMm.toFixed(2)+'mm'+
+     '\\n공중 회수 최저 여유: '+s.minSwingClearanceMm.toFixed(2)+'mm'+
      '\\n주기 경계 최대 각도: '+s.maximumCycleSeamDeg.toFixed(2)+'도'+
      '\\n보폭 보정 지지발 편차: '+s.largestConsecutiveCorrectedStanceZDeltaMm.toFixed(2)+'mm'+
+     '\\n좌우 지지발 흔들림: '+s.maxStanceLateralDeltaMm.toFixed(2)+'mm'+
+     '\\n문제 프레임: 발굽 관통 #'+s.worstFrame.penetration+'('+s.worstFrame.hoof+
+     '), 피부 신장 #'+s.worstFrame.skinStretch+', 접지 높이 #'+s.worstFrame.stanceError+
      '\\n상태: '+(s.violations.length?s.violations.join(' / '):'수치상 통과, Chrome 시각 검증은 미완료')+
-     '\\n이 후보는 저장소 원본 또는 실제 선택 클립을 변경하지 않았습니다.';
+     '\\n실험 코드입니다. FAIL 시 후보 채택 금지. 정지/Walk/질주/원본 스킨을 변경하지 않습니다.';
    }catch(err){
     walkFitReport.textContent='Walk P1/P2 검사 FAIL: '+String(err?.message||err);
    }finally{walkFitButton.disabled=false;}

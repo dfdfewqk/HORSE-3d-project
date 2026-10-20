@@ -52,14 +52,32 @@
    if(length<.008||length>.12)continue;
    for(const type of ['fore','hind'])if(region[type][u]&&region[type][v])groups[type].push([u,v,length]);
   }
-  const soleFeet={};
+  const soleFeet={},legEdges={},edgeCounts={fore:groups.fore.length,hind:groups.hind.length};
   for(const leg of FEET){
    const f=sole.feet[leg],pts=[f.contactVertex,f.frontVertex,f.backVertex];
    if(pts.some(v=>!Number.isInteger(v)||v<0||v>=24314))throw Error('Invalid actual hoof vertex '+leg);
    soleFeet[leg]={...f,vertices:pts};
+   // Use ORIGINAL corrected GLB skin indices/weights and proximal limb bone
+   // influence to sample actual skinned triangle edges for optimization.
+   const set=new Set(skinnedNames.map((name,i)=>name.startsWith(leg+'_')?i:-1).filter(i=>i>=0));
+   const strength=vertex=>{
+    let sum=0;for(let k=0;k<4;k++)if(set.has(j[vertex*4+k]))sum+=weights[vertex*4+k];
+    return sum;
+   };
+   const kind=leg.startsWith('Fore')?'fore':'hind',x=f.ref[0],
+    group=groups[kind].filter(([u,v])=>
+     Math.abs(pos[3*u]-x)<.36&&Math.abs(pos[3*v]-x)<.36&&
+     Math.max(strength(u),strength(v))>.32&&Math.min(strength(u),strength(v))>.09);
+   // Stable spaced sample from the SAME corrected vertex cohorts used in full QA.
+   // Do not game the full-mesh thresholds with the smaller optimization sample.
+   if(group.length<30)throw Error('Insufficient local limb skin edges '+leg+': '+group.length);
+   const sample=[];
+   for(let k=0;k<Math.min(96,group.length);k++)
+    sample.push(group[Math.floor(k*group.length/Math.min(96,group.length))]);
+   legEdges[leg]=sample;
   }
-  return {g,pos,j,weights,parent,joints,ibms,edges:groups,feet:soleFeet,ground:sole.floor,
-   sameTopology:groups.fore.length===3107&&groups.hind.length===2932};
+  return {g,pos,j,weights,parent,joints,ibms,edges:groups,legEdges,feet:soleFeet,ground:sole.floor,
+   edgeCounts,sameTopology:edgeCounts.fore===3107&&edgeCounts.hind===2932};
  }
  function poseMatrices(a,pose){
   const doc=a.g.doc.nodes,global=new Array(doc.length);
@@ -82,9 +100,23 @@
   if(total<.99||total>1.01||![X,Y,Z].every(Number.isFinite))throw Error('Malformed vertex skinning');
   return [X,Y,Z];
  }
- function measure(a,pose,leg){
-  const mats=poseMatrices(a,pose),f=a.feet[leg],v=f.vertices.map(i=>transform(a,i,mats));
+ function measureWithMatrices(a,mats,leg){
+  const f=a.feet[leg],v=f.vertices.map(i=>transform(a,i,mats));
   return {contact:v[0],toe:v[1],heel:v[2],minY:Math.min(v[0][1],v[1][1],v[2][1])};
+ }
+ function measure(a,pose,leg){return measureWithMatrices(a,poseMatrices(a,pose),leg);}
+ function localSkinPenalty(a,mats,leg){
+  const edges=a.legEdges[leg];let penalty=0,worst=0;
+  const cache=new Map(),point=id=>{
+   if(!cache.has(id))cache.set(id,transform(a,id,mats));return cache.get(id);
+  };
+  for(const [u,v,originalLength] of edges){
+   const p=point(u),q=point(v),stretch=Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2])/originalLength;
+   if(!Number.isFinite(stretch))throw Error('Nonfinite limb edge '+leg);
+   worst=Math.max(worst,stretch);
+   penalty+=Math.max(0,stretch-1.16)**2;
+  }
+  return {penalty:penalty/edges.length,maxStretch:worst,inspectedEdges:edges.length};
  }
  function basePose(g,clip,i,builder){
   const t=clip.duration*i/N,pose=g.nodes.map(n=>({t:Array.from(n.baseT),q:Array.from(n.baseQ),s:Array.from(n.baseS)}));
@@ -109,7 +141,7 @@
   return {stance:planted,phase:p,targetY:ground+.002+lift+.003*breakover,
    targetZ:foot.restZ+stride*travel,stride,breakover};
  }
- function loss(points,target,oldAngles,newAngles,neighbor,ground){
+ function loss(points,target,oldAngles,newAngles,neighbor,ground,localSkin){
   const C=points.contact,T=points.toe,H=points.heel,stance=target.stance,
    penetration=Math.max(0,ground+.001-points.minY);
   // Protect toe/heel clearance before pursuing a larger cosmetic stride.
@@ -120,8 +152,11 @@
   else{value+=30*Math.max(0,target.targetY-Math.min(T[1],H[1]))**2;}
   for(let k=0;k<newAngles.length;k++){
    value+=.007*(newAngles[k]-oldAngles[k])**2;
-   if(neighbor)value+=.003*(newAngles[k]-neighbor[k])**2;
+   if(neighbor)value+=.006*(newAngles[k]-neighbor[k])**2;
   }
+  // True CPU-skinned leg edge stretch is now part of the optimization, NOT
+  // merely checked after baking. Lower bound remains the original 1.20x gate.
+  value+=.35*localSkin.penalty;
   return value;
  }
  function optimizeFrame(a,builder,clip,leg,i,neighbor){
@@ -134,7 +169,9 @@
    bounds=LIMITS[kind].map(x=>x.map(v=>v*RAD)),target=goal('walk',leg,i,a.feet[leg],a.ground,builder.configs.walk);
   function score(values){
    assign(initial,ids,values);
-   return loss(measure(a,initial,leg),target,old,values,neighbor,a.ground);
+   const mats=poseMatrices(a,initial);
+   return loss(measureWithMatrices(a,mats,leg),target,old,values,neighbor,
+    a.ground,localSkinPenalty(a,mats,leg));
   }
   let best=score(current),changed=false;
   for(const step of [4,2,1,.5]){
@@ -153,8 +190,10 @@
    if(update){ /* conservative coordinate descent, no relaxation that hides misses */ }
   }
   assign(initial,ids,current);
-  const measured=measure(a,initial,leg);
-  return {angles:current,old,measure:measured,target,energy:best,changed};
+  const finalMats=poseMatrices(a,initial),measured=measureWithMatrices(a,finalMats,leg),
+   skin=localSkinPenalty(a,finalMats,leg);
+  return {angles:current,old,measure:measured,target,energy:best,changed,
+   localizedEdgeMaxStretch:skin.maxStretch,skinEdgeSampleCount:skin.inspectedEdges};
  }
  function fullSkin(a,pose){
   const mats=poseMatrices(a,pose),arr=new Float32Array(a.pos.length);
@@ -175,9 +214,12 @@
  const state={status:'idle',progress:0,report:null,error:null};
  async function run(g,source,sole,builder,reader,notify){
   if(state.status==='running')throw Error('Walk contact-fit already running');
-  state.status='running';state.error=null;state.progress=0;state.report=null;
+  state.status='running';state.error=null;state.progress=0;state.report=null;state.candidate=null;
   try{
    const a=prepare(g,sole,reader),clip=g.animations.find(x=>x.name==='Walk_V16_7_FOOTFALL');
+   if(source?.addedClips!==4&&source?.sourceTag!=='isolated-proxy')
+    throw Error('Gait runtime provenance missing, refusing unverified clip');
+
    if(!clip||clip.channels.length!==19||!a.sameTopology)throw Error('Protected V16.7 clip or GLB edge cohorts changed');
    const frames=[],limbs={},previous={};for(const leg of FEET)limbs[leg]=[];
    for(let i=0;i<N;i++){
@@ -191,29 +233,41 @@
     state.progress=(i+1)/(2*N);if(notify)notify(state.progress);
     if(i%4===3)await new Promise(resolve=>setTimeout(resolve,0));
    }
-   let deepest=0,maxEdge=0,maxSeam=0,maxStanceError=0,slip=0;
-   let baselineDepth=0,baselineEdge=0;
-   const lastStanceZ={};
+   let deepest=0,maxEdge=0,maxSeam=0,maxStanceError=0,slip=0,lateralSlip=0;
+   let baselineDepth=0,baselineEdge=0,minimumSwingClearance=Infinity;
+   let worstPenetrationFrame=-1,worstStretchFrame=-1,worstStanceFrame=-1;
+   let worstPenetrationFoot=null,maxHoofTipPenetration=0,maxHoofHeelPenetration=0;
+   const lastStanceZ={},lastStanceX={};
    const violations=[];
    for(let i=0;i<N;i++){
     const pose=frames[i].pose,coords=fullSkin(a,pose),edge=edgeStat(a,coords);
     const original=fullSkin(a,basePose(g,clip,i,builder)),oldEdge=edgeStat(a,original);
     baselineEdge=Math.max(baselineEdge,oldEdge.fore,oldEdge.hind);
-    maxEdge=Math.max(maxEdge,edge.fore,edge.hind);
+    const edgeNow=Math.max(edge.fore,edge.hind);
+    if(edgeNow>maxEdge){maxEdge=edgeNow;worstStretchFrame=i;}
     for(const leg of FEET){
      const f=a.feet[leg],v=f.vertices.map(index=>[coords[index*3],coords[index*3+1],coords[index*3+2]]),
       target=frames[i].data[leg].target,minY=Math.min(...v.map(p=>p[1])),
       penetration=Math.max(0,a.ground-minY);
-     deepest=Math.max(deepest,penetration);
+     if(penetration>deepest){deepest=penetration;worstPenetrationFrame=i;worstPenetrationFoot=leg;}
+     maxHoofTipPenetration=Math.max(maxHoofTipPenetration,Math.max(0,a.ground-v[1][1]));
+     maxHoofHeelPenetration=Math.max(maxHoofHeelPenetration,Math.max(0,a.ground-v[2][1]));
      const oldDepth=Math.max(0,a.ground-Math.min(...f.vertices.map(index=>original[index*3+1])));
      baselineDepth=Math.max(baselineDepth,oldDepth);
+     if(!target.stance)
+      minimumSwingClearance=Math.min(minimumSwingClearance,minY-a.ground);
      if(target.stance){
-      maxStanceError=Math.max(maxStanceError,Math.abs(v[0][1]-a.ground));
+      const error=Math.abs(v[0][1]-a.ground);
+      if(error>maxStanceError){maxStanceError=error;worstStanceFrame=i;}
       const u=target.phase/builder.configs.walk.stance[leg.startsWith('Fore')?'fore':'hind'];
       const correctedZ=v[0][2]+target.stride*smooth(u);
       if(i&&frames[i-1].data[leg].target.stance&&lastStanceZ[leg]!==undefined)
        slip=Math.max(slip,Math.abs(correctedZ-lastStanceZ[leg]));
       lastStanceZ[leg]=correctedZ;
+      const footX=v[0][0];
+      if(lastStanceX[leg]!==undefined&&i&&frames[i-1].data[leg].target.stance)
+       lateralSlip=Math.max(lateralSlip,Math.abs(footX-lastStanceX[leg]));
+      lastStanceX[leg]=footX;
      }
     }
     state.progress=.5+(i+1)/(2*N);if(notify)notify(state.progress);
@@ -227,6 +281,8 @@
    if(maxEdge>1.20)violations.push('skinned edge stretch '+maxEdge.toFixed(3)+'x');
    if(maxSeam>12)violations.push('cycle seam '+maxSeam.toFixed(1)+' degrees');
    if(slip>.015)violations.push('stride-corrected stance delta '+(1000*slip).toFixed(1)+'mm');
+   if(lateralSlip>.015)violations.push('lateral stance-foot slide '+(1000*lateralSlip).toFixed(1)+'mm');
+   if(minimumSwingClearance<-.005)violations.push('swing foot ground penetration '+(1000*minimumSwingClearance).toFixed(1)+'mm');
    if(deepest>baselineDepth+.001)violations.push('penetration regression vs V16.7 baseline');
    if(maxEdge>baselineEdge+.02)violations.push('skin stretch regression vs V16.7 baseline');
    const times=Float32Array.from({length:N},(_,i)=>i*clip.duration/N);
@@ -248,9 +304,17 @@
     maxStanceErrorMm:1000*maxStanceError,
     maximumSkinEdgeStretch:maxEdge,baselineMaximumSkinEdgeStretch:baselineEdge,
     maximumCycleSeamDeg:maxSeam,
-    largestConsecutiveCorrectedStanceZDeltaMm:1000*slip,edgeCounts:{fore:a.edges.fore.length,hind:a.edges.hind.length},
+    largestConsecutiveCorrectedStanceZDeltaMm:1000*slip,
+    maxStanceLateralDeltaMm:1000*lateralSlip,
+    minSwingClearanceMm:1000*minimumSwingClearance,
+    maxToePenetrationMm:1000*maxHoofTipPenetration,maxHeelPenetrationMm:1000*maxHoofHeelPenetration,
+    worstFrame:{penetration:worstPenetrationFrame,hoof:worstPenetrationFoot,
+     skinStretch:worstStretchFrame,stanceError:worstStanceFrame},
+    edgeCounts:a.edgeCounts,localEdgeSamples:Object.fromEntries(FEET.map(l=>[l,a.legEdges[l].length])),
     status:violations.length?'FAIL':'NUMERIC_GATE_PASS_VISUAL_NOT_VERIFIED',violations,
-    nativeModelPreserved:true,limits:'19 X-axis hinges cannot physically guarantee 3D hoof attitude or friction'};
+    nativeModelPreserved:true,gate:{penetrationMm:5,stanceHeightMm:12,
+     stanceStepMm:15,edgeStretch:1.20,angleSeamDeg:12},
+    limits:'19 X-axis hinges cannot physically guarantee 3D hoof attitude or friction; 160-frame proxy ground relative displacement'};
    // Keep validated candidate in memory only. A numeric pass is not a production approval.
    state.report=report;state.candidate=candidate;state.status='finished';
    return {report,candidate}; 

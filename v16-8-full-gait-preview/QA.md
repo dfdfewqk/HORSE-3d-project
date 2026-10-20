@@ -5,7 +5,7 @@
 ## Files / actual changes
 - `index.html`: original legacy iframe, 50 original scripts and two new V16.8 scripts, 5 top/lower modes, a manual P1/P2 test button and side-by-side diagnostic output.
 - `viewer-bridge.js`: uses legacy `clipIndex` as the only source of truth, adds 180ms experimental pose blending, preserves phase, synchronizes mode, compare, speed, play and Idle. **P0 fix:** updates the real DOM option value before switching to an old source clip; assigning an index not present in an HTML select's options can clear its value and select the wrong clip.
-- `walk-contact-fit.js`: new **experimental Walk-only** real skinned vertex optimization. Processes four hoof contact/toe/heel triplets, 14 original X-hinge limb rotations, cyclic gait targets; reconstructs all 19 joint transforms + inverse bind matrices. It runs **160 full-mesh CPU skin evaluations** for candidate and baseline. Skin cohort expected from V16.7 runtime: fore 3107, hind 2932 edges.
+- `walk-contact-fit.js`: new **experimental Walk-only** real skinned vertex optimization (2026-10-20: added actual skin-edge penalty inside every joint-angle trial, not just post-hoc quality check). Processes four hoof contact/toe/heel triplets, 14 original X-hinge limb rotations, cyclic gait targets; reconstructs all 19 joint transforms + inverse bind matrices. It runs **160 full-mesh CPU skin evaluations** for candidate and baseline. Skin cohort expected from V16.7 runtime: fore 3107, hind 2932 edges.
 - It does NOT alter the embedded GLB, source animations, mesh materials, HairKey, Idle/Gallop, 440-vertex correction or pre-V16.8 files. It does NOT append or automatically play the experimental candidate. P3/P4 remain unchanged.
 
 ## 2026-10-19 verification results
@@ -49,3 +49,30 @@ The committed contact-fit is the earlier conservative candidate which improved p
 4. When real Chrome and recorded-video side-by-side evidence is unavailable, report **NOT VERIFIED**. Do not merge or deploy as finished.
 
 Research context (not a direct validation of our rig): hoof breakover during equine walking typically occupies the last portion of stance. https://pmc.ncbi.nlm.nih.gov/articles/PMC7259550/ . Actual force-plate and kinematic events cannot be derived simply from the preview GLB.
+
+## 2026-10-20 — P1/P2 substantive update (not a gait release)
+
+**What changed in existing V16.8 files, without modifying any original clip or GLB**
+
+- `walk-contact-fit.js`: during *each* candidate joint-angle evaluation, rebuild joint world transforms + inverse-bind skin transforms; measure original GLB contact/toe/heel vertices and **96 corrected skinned triangle edges around the affected leg**. Penalize excessive skin stretching alongside penetration, contact height/stride error, joint-angle displacement, and temporal discontinuity. Full-mesh final audit remains **all** 3,107/2,932 region edges, not just 96 samples.
+- Added per-frame finding of worst hoof penetration (frame + leg), worst total skin stretch, worst stance error, actual toe/heel penetration, swing clearance, and lateral stance displacement. Hard regression gate rejects penetration >1mm or skin extension >0.02 above same-fixture source.
+- `index.html`: existing Walk QA button now prints source-versus-candidate measurements and the failure frames, with explicit no-auto-apply warning.
+- Runtime provenance check ensures actual V16.7 `addedClips===4`; exploratory tests use an explicit `isolated-proxy` marker. State resets old candidates when a retry fails.
+
+**Real source model calibration (independent inspection):** decoded the **actual embedded GLB** from `legacy-v7.html`, reapplied the exact V12 `editBelly` strength/mask formula to cached `JOINTS_0`/`WEIGHTS_0` arrays without modifying the source. This reproduced **440** corrected abdomen vertices and the expected edge cohort sizes **fore 3,107 / hind 2,932**. Original uncorrected weights yield 3,175 / 2,934. The earlier discrepancy is therefore accounted for by the abdominal weight correction. This is a **real data-path unit calibration**, not a browser run.
+
+**Algorithm smoke test:** an **8-frame isolated smoke test** used the corrected real GLB body and its original `Walk_PREVIEW` animation as a clearly marked **proxy**, not the generated V16.7 clip. Its 160-sample real-runtime checks were not simulated:
+
+| Diagnostic on 8 coarse proxy frames | Source | New skin-penalized candidate | Interpretation |
+|---|---:|---:|---|
+| Hoof maximum penetration | 21.844 mm | 8.418 mm | Improvement but FAIL 5mm gate |
+| Max full-mesh skin-edge stretch | 1.249x | 1.323x | **Regression** and FAIL 1.20x |
+| Max stance height error | — | 30.854 mm | FAIL 12mm |
+| Virtual treadmill-corrected step | — | 120.023 mm | FAIL 15mm; coarse 8-frame stride measurements are **not** comparable to 160-frame metrics |
+| Max joint cycle seam | — | 9.649° | Below 12° but this does not validate walking |
+
+Detected penetration was worst at proxy frame 4, fore-left; maximum edge stretch was at frame 4 and stance height discrepancy at frame 6. The isolated proxy test **FAILS**. The new algorithm has not solved the skin distortion problem and must not be applied automatically.
+
+**Mandatory next checks:** execute 160-frame full-runtime V16.7 Walk source + candidate with corrected weights, then original 8-clips ×160 audit and real Chromium synchronized UI tests; export failing frames. The current 19 X-axis-hinge rig remains an under-actuated approximation; if penetration, true hoof attitude and skin length cannot jointly pass, rebuild the WEB rig/skin from protected Blender source in a separate candidate rather than silently expanding joint limits.
+
+**Safety of existing assets:** modified files are only under `v16-8-full-gait-preview/`. Existing `main` and V14–V16.7 folders remain unchanged. This QA and Git stage do **not** constitute a publicly validated V16.8 preview/release.
