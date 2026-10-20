@@ -162,7 +162,10 @@
   }
   // True CPU-skinned leg edge stretch is now part of the optimization, NOT
   // merely checked after baking. Lower bound remains the original 1.20x gate.
-  value+=.35*localSkin.penalty;
+  // A mean penalty over 96 samples diluted a single stretched edge, whereas
+  // the final quality gate tests the worst edge. Use that worst edge in IK.
+  const over=Math.max(0,localSkin.maxStretch-1.18);
+  value+=140*over*over+12*localSkin.penalty;
   return value;
  }
  function optimizeFrame(a,builder,clip,leg,i,neighbor,sharedPose){
@@ -378,7 +381,7 @@
    const candidate={name:NAME,duration:clip.duration,channels};
    if(channels.length!==19)throw Error('Final Walk channels changed unexpectedly');
    const report={mode:'walk',frames:N,skinnedVertices:24314,hoofSamples:N*4*3,
-    optimizationMethod:'shared-pose skin-aware IK, V16.7-consistent stance phase, contact+skin baseline protection',
+    optimizationMethod:'96-edge max-stretch-penalized shared-pose IK, V16.7 stance phase, full skin and contact guards',
     guard:{activationCount:backedOff.length,minInterpolationFraction:smallestGuardAlpha,
      samples:backedOff.slice(0,16)},
     maximumPenetrationMm:1000*deepest,baselineMaximumPenetrationMm:1000*baselineDepth,
