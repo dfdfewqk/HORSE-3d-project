@@ -16,9 +16,6 @@ concurrency:
 jobs:
   publish-preview:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}v16-9-biomechanics-preview/
     steps:
       - name: Check out V16.9 only (preserve main)
         uses: actions/checkout@v4
