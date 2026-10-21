@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish-v169:
+  publish-v170-stabilized:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -38,6 +38,11 @@ jobs:
           ! test -e v16-9-biomechanics-preview/index.html
           ! test -e v16-7-full-gait-preview/index.html
           test -f v16-7-full-gait-preview/gait-runtime.js
+      - name: Log actual stabilized motion source commit
+        run: |
+          echo "V17.0 latest four-gait anti-tremor candidate"
+          git rev-parse HEAD
+          test -f v17-0-biomechanics-preview/gait-solver.js
       - name: Upload real GLB viewer and animation assets
         uses: actions/upload-pages-artifact@v3
         with:
