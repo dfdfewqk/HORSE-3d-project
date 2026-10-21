@@ -27,6 +27,9 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-1-preview/';
       maxCycleSeamDeg:v.maxCycleSeamDeg,
       method:v.method,
       referenceJointCount:v.referenceJointCount,
+      visualPolicy:v.visualPolicy,
+      reachScale:v.gaitPolish?.reach,
+      recoveryFlex:v.gaitPolish?.hind,
     }])),
     oldControls:!!document.getElementById('chooseV169')||!!document.getElementById('compare'),
     oldPanels:!!document.getElementById('walkFitButton')||!!document.getElementById('walk169Audit'),
@@ -41,6 +44,15 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-1-preview/';
     assert.equal(stats.referenceJointCount,19);
     assert.ok(stats.maxFullJointStepDeg<=9,'Final joint velocity too large: '+mode);
     assert.ok(stats.maxCycleSeamDeg<=9,'Whole-gait seam discontinuity: '+mode);
+  }
+  for(const [mode,reach] of Object.entries({cruise:.89,fast:.86,sprint:.84})){
+    const stats=info.stability?.[mode];
+    assert.ok(stats.visualPolicy?.includes('game-ready'),
+     'The public website does not contain latest game polish: '+mode);
+    assert.ok(Math.abs(stats.reachScale-reach)<1e-6,
+     'Public website motion reach settings are stale: '+mode);
+    assert.ok(stats.recoveryFlex>3,
+     'Public website mid-swing hindleg recovery patch missing: '+mode);
   }
   assert.equal(info.oldControls,false);assert.equal(info.oldPanels,false);
   assert.doesNotMatch(info.legacyLabels,/V16\./);
