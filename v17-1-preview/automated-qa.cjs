@@ -59,6 +59,39 @@ try{
  assert.equal(cleaned.oldLabels,false);
  assert.equal(cleaned.currentButtons,5);
  evidence.cleanedUI=cleaned;
+ evidence.temporal=await page.evaluate(()=>{
+  const w=document.getElementById('viewer').contentWindow,g=w.eval('object3d'),
+   sampler=w.__horseV167Builder;
+  const result={};
+  for(const mode of ['walk','cruise','fast','sprint']){
+   const clip=g.animations.find(c=>c.name==='V17_1_'+mode.toUpperCase()+'_CYCLE_IK_EXPERIMENT');
+   if(!clip||clip.channels.length!==19)throw Error('Temporal clip missing '+mode);
+   let step=0,acceleration=0,seam=0,checked=0;
+   const angle=(a,b)=>2*Math.acos(Math.max(-1,Math.min(1,
+    Math.abs(a.reduce((v,x,k)=>v+x*b[k],0)))))*180/Math.PI;
+   for(const channel of clip.channels){
+    if(channel.path!=='rotation')continue;
+    const q=Array.from({length:160},(_,i)=>sampler.sample(channel.sam,clip.duration*i/160,4));
+    for(let i=0;i<160;i++){
+     const pre=q[(i+159)%160],nxt=q[(i+1)%160],now=q[i],
+      d=angle(now,nxt),back=angle(pre,now);
+     step=Math.max(step,d);
+     acceleration=Math.max(acceleration,Math.abs(d-back));
+     if(i===159)seam=Math.max(seam,d);
+    }
+    checked++;
+   }
+   result[mode]={maxWholeJointAngularStepDeg:step,maxWholeJointAngularAccelerationProxyDeg:acceleration,
+     maxSeamStepDeg:seam,checkedRotationChannels:checked};
+  }
+  return result;
+ });
+ for(const [mode,q] of Object.entries(evidence.temporal)){
+  assert.ok(q.checkedRotationChannels>=14,'Missing skinned joint rotations: '+mode);
+  assert.ok(q.maxWholeJointAngularStepDeg<9,'Abrupt full-joint angular jump: '+mode);
+  assert.ok(q.maxSeamStepDeg<9,'Cyclic rotation seam jump: '+mode);
+  assert.ok(q.maxWholeJointAngularAccelerationProxyDeg<4,'Full-joint chatter: '+mode);
+ }
  evidence.metrics=await page.evaluate(()=>document.getElementById('viewer').contentWindow.__horseV171QA.run());
  assert.equal(evidence.metrics.totalSkinSamples,1280);
  assert.equal(evidence.metrics.edgeCohorts.fore,3107);
