@@ -2,7 +2,7 @@ name: V17.1 public website actual Chrome smoke
 on:
   push:
     branches: [v17-1-anatomical-gait-rebuild]
-    paths: ['v17-1-preview/site-smoke.cjs','.github/workflows/v170-site-smoke.yml']
+    paths: ['v17-1-preview/site-smoke.cjs','.github/workflows/v171-site-smoke.yml']
   workflow_dispatch:
 permissions:
   contents: read
