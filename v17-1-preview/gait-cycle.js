@@ -226,6 +226,62 @@ function bake(g,mode,builder,geom){
   for(let i=0;i<N;i++)ids.forEach((id,j)=>
     frames[i][id].q=qmultiply(before[i][id].q,xdelta(acceptedScale*phaseCorrection(coeff[j],i))));
  }
+ // GAME-POLISH (not an anatomical/ridigging replacement):
+ // 1. Reduce visual straight-leg overreach in gallop.
+ // 2. Give recovering knee/stifle/hock a SMALL coordinated flexion.
+ // 3. Add low-frequency trunk counter-motion, neck/head response and delayed tail.
+ // All additions are smooth and cyclic; no hard touchdown toggles.
+ // This layer stays modest because unmodified 19-bone skin already overstretches.
+ const game={walk:{reach:1,fore:0,hind:0,hock:0,bob:.0015,pitch:.11,neck:.10,tail:.16},
+  cruise:{reach:.94,fore:1.8,hind:2.4,hock:-1.7,bob:.005,pitch:.35,neck:.23,tail:.38},
+  fast:{reach:.92,fore:2.2,hind:3.0,hock:-2.1,bob:.006,pitch:.43,neck:.29,tail:.45},
+  sprint:{reach:.90,fore:2.6,hind:3.5,hock:-2.4,bob:.007,pitch:.52,neck:.35,tail:.55}}[mode];
+ const limbActions={};
+ for(const leg of FEET){
+  const ids=geom.chains[leg],isFore=leg.startsWith('Fore');
+  const rootId=ids[0];
+  // Compress *phase excursion*, not the joint's neutral position.
+  const mean=frames.reduce((s,p)=>s+2*Math.atan2(p[rootId].q[0],p[rootId].q[3]),0)/N;
+  const flexId=ids[1],hockId=isFore?null:ids[2];
+  for(let i=0;i<N;i++){
+   const p=frames[i],state=gaitTarget(i,config,leg,geom),
+    swing=state.stance?0:Math.pow(Math.sin(PI*state.u),2),
+    current=2*Math.atan2(p[rootId].q[0],p[rootId].q[3]);
+   const shoulderDelta=clamp((mean-current)*(1-game.reach),-4.0*RAD,4.0*RAD);
+   p[rootId].q=qmultiply(p[rootId].q,xdelta(shoulderDelta));
+   p[flexId].q=qmultiply(p[flexId].q,xdelta((isFore?game.fore:game.hind)*RAD*swing));
+   if(hockId!==null)p[hockId].q=qmultiply(p[hockId].q,xdelta(game.hock*RAD*swing));
+  }
+  limbActions[leg]={reachScale:game.reach,flexDeg:isFore?game.fore:game.hind,
+   hockDeg:isFore?0:game.hock};
+ }
+ for(let i=0;i<N;i++){
+  const p=frames[i],theta=TAU*i/N;
+  // Keep motion measured and below a degree at the pelvis: no rubber torso.
+  const pulse=Math.sin(theta-0.45)+.20*Math.sin(2*theta-.9);
+  p[geom.torso].t[1]+=game.bob*(.5+.5*Math.sin(theta-.75));
+  p[geom.torso].q=qmultiply(p[geom.torso].q,xdelta(game.pitch*RAD*pulse));
+  p[geom.neck].q=qmultiply(p[geom.neck].q,xdelta(-game.neck*RAD*pulse));
+  p[geom.head].q=qmultiply(p[geom.head].q,xdelta(game.neck*.42*RAD*Math.sin(theta-1.05)));
+  const tailId=g.doc.nodes.findIndex(x=>x.name==='Tail');
+  if(tailId>=0)p[tailId].q=qmultiply(p[tailId].q,
+   xdelta(game.tail*RAD*Math.sin(theta-1.48)));
+ }
+ // Small periodic smoothing of final rotations (including cyclic seam).
+ // Unlike repeated per-frame IK, this cannot create new pose branches.
+ const allLegJoints=[...new Set(Object.values(geom.chains).flat())];
+ for(const id of [...allLegJoints,geom.torso,geom.neck,geom.head]){
+  const samples=frames.map(p=>p[id].q.slice());
+  for(let i=0;i<N;i++){
+   const previous=samples[(i+N-1)%N],current=samples[i],
+    next=samples[(i+1)%N];
+   const sign1=current.reduce((v,x,k)=>v+x*previous[k],0)<0?-1:1,
+    sign2=current.reduce((v,x,k)=>v+x*next[k],0)<0?-1:1;
+   const avg=current.map((x,k)=>.84*x+.08*(previous[k]*sign1+next[k]*sign2)),
+    norm=Math.hypot(...avg);
+   frames[i][id].q=avg.map(x=>x/norm);
+  }
+ }
  const sampleTimes=Float32Array.from({length:N},(_,i)=>src.duration*i/N);
  const channels=src.channels.map(ch=>{
   const dimension=ch.path==='rotation'?4:3,values=new Float32Array(N*dimension);
@@ -243,6 +299,8 @@ function bake(g,mode,builder,geom){
  return {clip,stats:{mode,source:src.name,period:src.duration,method:'whole-cycle Fourier constrained IK',
   optimizedSteps:optimized,trialCount,referenceJointCount:19,
   maxTorsoLiftMm:Math.max(...root)*1000,...smooth,
+  visualPolicy:'restrained game-ready gallop gait, reduced overreach, soft limb recovery',
+  gaitPolish:game,limbActions,
   originalModelPreserved:true,rigExtended:false,approved:false}};
 }
 let count=0;
