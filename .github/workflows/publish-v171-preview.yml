@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish-v171-stabilized:
+  publish-v171-game-motion:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -41,9 +41,10 @@ jobs:
           test -f v16-7-full-gait-preview/gait-runtime.js
       - name: Log current motion source commit
         run: |
-          echo "V17.1 cycle-wide contact and skin-check candidate"
+          echo "V17.1 game motion polish: moderated reach, stance, knee/hock recovery"
           git rev-parse HEAD
           test -f v17-1-preview/gait-cycle.js
+          grep -q 'sprint:{reach:.84' v17-1-preview/gait-cycle.js
       - name: Upload real GLB viewer and animation assets
         uses: actions/upload-pages-artifact@v3
         with:
