@@ -23,9 +23,10 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-1-preview/';
     ready:!!w.__horseV171?.ready,joints:g.skins[0].joints.length,
     candidateNames:g.animations.filter(x=>x.name.startsWith('V17_1_')).map(x=>x.name),
     stability:w.__horseV171?.results&&Object.fromEntries(Object.entries(w.__horseV171.results).map(([k,v])=>[k,{
-      maxCorrectionStepDeg:v.maxCorrectionStepDeg,
-      maxCorrectionAccelerationDeg:v.maxCorrectionAccelerationDeg,
-      antiJitter:v.antiJitter,
+      maxFullJointStepDeg:v.maxFullJointStepDeg,
+      maxCycleSeamDeg:v.maxCycleSeamDeg,
+      method:v.method,
+      referenceJointCount:v.referenceJointCount,
     }])),
     oldControls:!!document.getElementById('chooseV169')||!!document.getElementById('compare'),
     oldPanels:!!document.getElementById('walkFitButton')||!!document.getElementById('walk169Audit'),
@@ -36,9 +37,10 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-1-preview/';
   assert.equal(info.candidateNames.length,4);assert.equal(info.buttons,5);
   for(const mode of ['walk','cruise','fast','sprint']){
     const stats=info.stability?.[mode];
-    assert.ok(stats?.antiJitter?.includes('cyclic Gaussian'),'new stabilized build must be deployed for '+mode);
-    assert.ok(stats.maxCorrectionStepDeg<=1,'IK delta jump regressed '+mode);
-    assert.ok(stats.maxCorrectionAccelerationDeg<=.18,'IK jerk regressed '+mode);
+    assert.equal(stats?.method,'whole-cycle Fourier constrained IK','correct V17.1 solver must be deployed');
+    assert.equal(stats.referenceJointCount,19);
+    assert.ok(stats.maxFullJointStepDeg<=9,'Final joint velocity too large: '+mode);
+    assert.ok(stats.maxCycleSeamDeg<=9,'Whole-gait seam discontinuity: '+mode);
   }
   assert.equal(info.oldControls,false);assert.equal(info.oldPanels,false);
   assert.doesNotMatch(info.legacyLabels,/V16\./);
@@ -55,7 +57,7 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-1-preview/';
    },mode);
    assert.equal(state.mode,mode);assert.equal(state.version,'v171');
    assert.equal(state.pressed,'true');assert.equal(state.playing,true);
-   assert.match(state.label,/V17\.0/);assert.equal(state.selectMatches,true);
+   assert.match(state.label,/V17\.1/);assert.equal(state.selectMatches,true);
    selections.push({mode,clip:state.clip,pressed:state.pressed});
   }
   await page.locator('[data-v17-mode="idle"]').click();
