@@ -119,16 +119,20 @@ function bake(g,mode,builder,geometry){
  const cfg=builder.configs[mode],src=g.animations.find(c=>c.name===cfg.name);
  if(!src||src.channels.length!==19)throw Error('Protected V16.7 '+mode+' unavailable');
  const frames=Array.from({length:N},(_,i)=>pose(g,src,i,builder));
- const rootLift=new Float64Array(N);
- // Enforce a moderate torso clearance before IK; smooth *upward* so a
- // frame cannot be lowered into the floor by the smoothing operation.
- for(let i=0;i<N;i++){
-  const min=Math.min(...FEET.map(leg=>geometry.measure(frames[i],leg).y));
-  rootLift[i]=clamp(geometry.ground+.003-min,0,.038);
+ // Contact-driven torso motion must be continuous in the full cycle.
+ function lowpass(samples,radius=10,sigma=4.0){
+  const weights=Array.from({length:2*radius+1},(_,k)=>Math.exp(-.5*((k-radius)/sigma)**2)),
+   denom=weights.reduce((a,b)=>a+b,0);
+  return samples.map((_,i)=>weights.reduce((a,w,k)=>
+   a+w*samples[(i+k-radius+N)%N],0)/denom);
  }
- const rootSmooth=Array.from({length:N},(_,i)=>
-  Math.max(rootLift[i],.78*rootLift[(i+N-1)%N]+.22*rootLift[i],
-   .78*rootLift[(i+1)%N]+.22*rootLift[i]));
+ const rootLift=Array.from({length:N},(_,i)=>{
+  const lowest=Math.min(...FEET.map(leg=>geometry.measure(frames[i],leg).y));
+  return clamp(geometry.ground+.003-lowest,0,.038);
+ });
+ const rootSmooth=lowpass(rootLift,10,4.3).map(v=>clamp(.65*v,0,.024));
+ // Zero-step contact switches previously made the head and neck jerk.
+ const supportWeight=t=>t.stance?ease(t.u/.18)*ease((1-t.u)/.18):0;
  let maxSlip=0,maxPen=0,nContact=0,iterations=0;
  const allStats={};
  for(let i=0;i<N;i++){
@@ -138,8 +142,8 @@ function bake(g,mode,builder,geometry){
    hindR=target(mode,'HindR',i,cfg,geometry);
   p[geometry.torso].t[1]+=rootSmooth[i];
   // Small support-driven trunk/poll coordination rather than independent waves.
-  const front=(frontL.stance?1:0)+(frontR.stance?1:0),
-   hind=(hindL.stance?1:0)+(hindR.stance?1:0);
+  const front=supportWeight(frontL)+supportWeight(frontR),
+   hind=supportWeight(hindL)+supportWeight(hindR);
   const heading=(front-hind)/2;
   p[geometry.neck].q=quat(angle(p[geometry.neck].q)+rads(mode==='walk'?-.7*heading:-1.15*heading));
   p[geometry.head].q=quat(angle(p[geometry.head].q)+rads(mode==='walk'?.3*heading:.5*heading));
@@ -149,19 +153,30 @@ function bake(g,mode,builder,geometry){
    if(stats.stance)nContact++;
   }
  }
- // The first independent frame fits made stance feet jump by 99-437mm.
- // Smooth EACH joint trajectory periodically, not per-frame alpha guards.
- // This intentionally prioritizes temporal continuity even if some
- // instantaneous hoof clearance must be compromised and re-tested.
+ // Per-frame IK correction had inconsistent local minima and made all
+ // four legs shake. Smooth the contact correction over the WHOLE stride
+ // with a cyclic kernel; retain the smoother base gait trajectory.
  const boneList=[...new Set(Object.values(geometry.ids).flat())];
+ const originals=Array.from({length:N},(_,i)=>pose(g,src,i,builder));
+ const strength=mode==='walk'?.42:.30,maxCorrection=rads(mode==='walk'?5:4);
+ let maxCorrectionStep=0,maxCorrectionAcceleration=0;
  for(const id of boneList){
-  const values=frames.map(p=>angle(p[id].q));
+  const base=originals.map(p=>angle(p[id].q));
+  const raw=frames.map((p,i)=>clamp(angle(p[id].q)-base[i],-rads(10),rads(10)));
+  const filtered=lowpass(raw,12,4.8);
+  const deltas=filtered.map(v=>clamp(v*strength,-maxCorrection,maxCorrection));
   for(let i=0;i<N;i++){
-   const prev=values[(i+N-1)%N],next=values[(i+1)%N];
-   const avg=.64*values[i]+.18*(prev+next);
-   frames[i][id].q=quat(avg);
+   const last=deltas[(i+N-1)%N],next=deltas[(i+1)%N],now=deltas[i];
+   maxCorrectionStep=Math.max(maxCorrectionStep,Math.abs(now-last));
+   maxCorrectionAcceleration=Math.max(maxCorrectionAcceleration,Math.abs(next-2*now+last));
+   frames[i][id].q=quat(base[i]+now);
   }
  }
+ maxCorrectionStep/=RAD;maxCorrectionAcceleration/=RAD;
+ if(maxCorrectionStep>1.0||maxCorrectionAcceleration>.18)
+  throw Error('V17 IK temporal stability failure '+mode+
+   ': '+maxCorrectionStep.toFixed(3)+'deg/frame, '+
+   maxCorrectionAcceleration.toFixed(3)+'deg/frame²');
  // Clip sampling is frame-indexed, cyclic, and leaves all source clips intact.
  const samples=Float32Array.from({length:N},(_,i)=>i*src.duration/N),channels=src.channels.map(ch=>{
   const n=ch.path==='rotation'?4:3,data=new Float32Array(N*n);
@@ -172,8 +187,11 @@ function bake(g,mode,builder,geometry){
  const name='V17_0_'+mode.toUpperCase()+'_CONTACT_IK_EXPERIMENT';
  const result={name,duration:src.duration,channels};
  return {clip:result,stats:{mode,reference:src.name,period:src.duration,
-  nContact,maxPenetrationMm:maxPen,totalFitEvaluations:iterations,
+  nContact,preFilterIKPenetrationMm:maxPen,totalFitEvaluations:iterations,
   maxRootLiftMm:Math.max(...rootSmooth)*1000,
+  maxCorrectionStepDeg:maxCorrectionStep,
+  maxCorrectionAccelerationDeg:maxCorrectionAcceleration,
+  antiJitter:'cyclic Gaussian IK correction; smooth support and limited torso lift',
   biologicalData:'contact-phase estimates; actual skin validation required',approved:false}};
 }
 let tries=0;
