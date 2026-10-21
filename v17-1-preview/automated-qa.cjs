@@ -48,6 +48,29 @@ try{
   assert.equal(state.selectMatches,true);
   assert.equal(state.playing,true);
  }
+ // Save side-view motion samples for genuine game-visual review.
+ // A 1280-frame geometry PASS cannot substitute for frames with unnatural poses.
+ evidence.visualFrames=[];
+ const modes=['walk','cruise','fast','sprint'];
+ for(const mode of modes)for(const phase of [.14,.46,.79]){
+  try{
+   await page.evaluate(({mode,phase})=>{
+    const w=document.getElementById('viewer').contentWindow,
+     bridge=w.__horseV171Bridge;
+    bridge.choose(mode);bridge.setPlaying(false);bridge.stopTransition();
+    const clip=w.eval('object3d.animations[clipIndex]');
+    w.eval('yaw=Math.PI/2;pitch=.12;animTime='+clip.duration*phase+
+     ';setClip(object3d);');
+   },{mode,phase});
+   await page.waitForTimeout(80);
+   const filename=path+'/gait-'+mode+'-'+Math.round(phase*100)+'.png';
+   await page.screenshot({path:filename,clip:{x:450,y:210,width:1050,height:650}});
+   evidence.visualFrames.push({mode,phase,file:filename});
+  }catch(error){
+   evidence.errors.push('Motion review capture '+mode+'/'+phase+': '+String(error));
+  }
+ }
+ await page.locator('[data-v17-mode="walk"]').click();
  const cleaned=await page.evaluate(()=>({
    oldControls:!!document.getElementById('chooseV169')||!!document.getElementById('compare'),
    oldReports:!!document.getElementById('walkFitButton')||!!document.getElementById('walk169Audit'),
