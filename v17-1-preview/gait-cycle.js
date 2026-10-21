@@ -233,9 +233,9 @@ function bake(g,mode,builder,geom){
  // All additions are smooth and cyclic; no hard touchdown toggles.
  // This layer stays modest because unmodified 19-bone skin already overstretches.
  const game={walk:{reach:1,fore:0,hind:0,hock:0,bob:.0015,pitch:.11,neck:.10,tail:.16},
-  cruise:{reach:.94,fore:1.8,hind:2.4,hock:-1.7,bob:.005,pitch:.35,neck:.23,tail:.38},
-  fast:{reach:.92,fore:2.2,hind:3.0,hock:-2.1,bob:.006,pitch:.43,neck:.29,tail:.45},
-  sprint:{reach:.90,fore:2.6,hind:3.5,hock:-2.4,bob:.007,pitch:.52,neck:.35,tail:.55}}[mode];
+  cruise:{reach:.89,fore:2.7,hind:3.5,hock:-2.9,bob:.006,pitch:.46,neck:.25,tail:.42},
+  fast:{reach:.86,fore:3.1,hind:4.1,hock:-3.3,bob:.007,pitch:.54,neck:.31,tail:.50},
+  sprint:{reach:.84,fore:3.5,hind:4.7,hock:-3.6,bob:.008,pitch:.62,neck:.36,tail:.58}}[mode];
  const limbActions={};
  for(const leg of FEET){
   const ids=geom.chains[leg],isFore=leg.startsWith('Fore');
