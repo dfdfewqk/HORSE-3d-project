@@ -31,10 +31,11 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-0-biomechanics-previe
   assert.equal(info.candidateNames.length,4);assert.equal(info.buttons,5);
   assert.equal(info.oldControls,false);assert.equal(info.oldPanels,false);
   assert.doesNotMatch(info.legacyLabels,/V16\./);
+  await page.waitForFunction(()=>document.getElementById('status')?.dataset.mode==='v17',null,{timeout:30000});
   const selections=[];
   for(const mode of ['walk','cruise','fast','sprint']){
    const button=page.locator('[data-v17-mode="'+mode+'"]');
-   assert.equal(await button.isEnabled(),true);
+   await page.waitForFunction(mode=>!document.querySelector('[data-v17-mode="'+mode+'"]')?.disabled,mode,{timeout:15000});
    await button.click();
    const state=await page.evaluate(m=>{
     const s=document.getElementById('viewer').contentWindow.__horseV170Bridge.snapshot();
