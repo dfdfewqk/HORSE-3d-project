@@ -9,6 +9,10 @@ iframe{width:100%;height:100%;display:block;border:0}
  background:#0b2739ee;border:1px solid #52748a;border-radius:9px;padding:6px;flex-wrap:wrap;max-width:94vw}
 button,select{background:#1b4154;color:#e2f1fa;padding:7px 9px;border:1px solid #6e98af;border-radius:6px;cursor:pointer}
 button[aria-pressed=true]{background:#196f82;border-color:#80c7e7;font-weight:bold}
+#chooseV169[aria-pressed=true]{background:#087958;border-color:#8af8b1;color:#fff;box-shadow:0 0 0 2px #49f6b144}
+#currentGait{display:inline-flex;align-items:center;padding:5px 9px;border-radius:6px;border:1px solid #749ab0;background:#102f42;color:#cde9fa;font-weight:bold;white-space:nowrap}
+#currentGait[data-version=experimental]{border-color:#8af8b1;background:#124b39;color:#e9fff1}
+#chooseV169{min-height:34px;position:relative;white-space:nowrap}
 button:disabled{opacity:.5;cursor:wait}
 #panel{position:fixed;z-index:21;left:12px;bottom:12px;max-height:52vh;overflow:auto;
  background:#071c2cee;border:1px solid #638299;border-radius:9px;padding:10px;
@@ -29,11 +33,12 @@ pre{font:11px/1.45 ui-monospace,monospace;white-space:pre-wrap;word-break:break-
 <div id="toolbar">
  <button data-mode="idle" disabled>Idle</button>
  <button data-mode="walk" disabled>Walk V16.7</button>
-  <button id="chooseV169" disabled>Walk V16.9 실험</button>
+  <button id="chooseV169" disabled aria-pressed="false" title="실제 V16.9 후보 클립으로 변경">Walk V16.9 실험</button>
  <button data-mode="cruise" disabled>Gallop Cruise</button>
  <button data-mode="fast" disabled>Gallop Fast</button>
  <button data-mode="sprint" disabled>Gallop Sprint</button>
  <button id="compare" disabled>이전 버전과 비교</button>
+  <output id="currentGait" role="status" aria-live="polite" data-version="loading">모션 준비 중…</output>
  <button id="playback" disabled>⏸ 일시정지</button>
  <label>배속 <input id="speedMirror" type="range" min="0.25" max="2" step="0.25" value="1" disabled style="width:78px;vertical-align:middle"></label>
 </div>
@@ -67,7 +72,11 @@ const iframe=document.getElementById('viewer'),viewButtons=[...document.querySel
  frame=document.getElementById('frame'),camera=document.getElementById('camera'),
  params=new URLSearchParams(location.search),showDebug=params.has('debug'),autoAudit=params.has('audit');
 let active=null,older=false,busy=false,syncTimer=null;
-const fail=msg=>{errorbox.textContent=String(msg);errorbox.style.display='block';info.textContent='검사 필요: '+msg};
+const fail=msg=>{
+ errorbox.textContent=String(msg);errorbox.style.display='block';info.textContent='검사 필요: '+msg;
+ const live=document.getElementById('currentGait');
+ if(live){live.dataset.version='error';live.textContent='모션 로딩 오류 — 아래 메시지 확인';}
+};
 document.getElementById('fold').onclick=()=>{
  const extra=document.getElementById('extra'),hide=extra.style.display!=='none';
  extra.style.display=hide?'none':'block';document.getElementById('fold').textContent=hide?'검사 펼치기':'검사 접기';
@@ -158,10 +167,19 @@ iframe.addEventListener('load',()=>{
   const captions={idle:'Idle',walk:'Walk',cruise:'Gallop Cruise',fast:'Gallop Fast',sprint:'Gallop Sprint'};
   function renderState(){
    const s=bridge.snapshot();active=s.mode==='idle'||s.mode==='unknown'?null:s.mode;older=s.version==='old';
+   const isV169=s.mode==='walk'&&s.version==='experimental';
    viewButtons.forEach(btn=>{
     btn.disabled=false;
-    btn.setAttribute('aria-pressed',String(btn.dataset.mode===s.mode));
+    btn.setAttribute('aria-pressed',String(btn.dataset.mode===s.mode&&!isV169));
    });
+   const expButton=document.getElementById('chooseV169'),selected=document.getElementById('currentGait');
+   expButton.disabled=false;
+   expButton.setAttribute('aria-pressed',String(isV169));
+   expButton.textContent=isV169?'✓ Walk V16.9 재생 중':'Walk V16.9 실험';
+   selected.dataset.version=isV169?'experimental':s.version;
+   selected.textContent=isV169?'현재 재생: Walk V16.9 실험':
+    '현재 재생: '+(s.mode==='walk'?'Walk '+(s.version==='old'?'이전 원본':'V16.7'):
+     (s.mode==='idle'?'Idle':(captions[s.mode]||'기타')));
    compare.disabled=!active;compare.textContent=s.mode==='walk'?'V16.7 ↔ V16.9 비교':older?'V16.7 후보 보기':'이전 버전과 비교';
    playButton.disabled=s.mode==='idle';playButton.textContent=s.playing?'⏸ 일시정지':'▶ 재생';
    speedMirror.disabled=false;speedMirror.value=String(s.speed);
@@ -177,7 +195,11 @@ iframe.addEventListener('load',()=>{
    if(b.dataset.mode==='idle')bridge.chooseIdle();else bridge.choose(b.dataset.mode,'new');
   });
   document.getElementById('chooseV169').disabled=false;
-   document.getElementById('chooseV169').onclick=()=>safe(()=>bridge.choose('walk','experimental'));
+   document.getElementById('chooseV169').onclick=()=>safe(()=>{
+    const result=bridge.choose('walk','experimental');
+    if(result.version!=='experimental'||result.mode!=='walk')
+     throw Error('V16.9 실험 Walk 전환이 완료되지 않았습니다');
+   });
    compare.onclick=()=>safe(()=>bridge.compare());
   playButton.onclick=()=>safe(()=>bridge.setPlaying(!bridge.snapshot().playing));
   speedMirror.oninput=()=>safe(()=>bridge.setSpeed(Number(speedMirror.value)));
