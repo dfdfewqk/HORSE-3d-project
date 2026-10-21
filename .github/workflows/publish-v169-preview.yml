@@ -1,4 +1,4 @@
-name: Publish HORSE RANCH V16.9 public browser preview
+name: Publish HORSE RANCH V17.0 public browser preview
 on:
   push:
     branches: [main]
@@ -19,12 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}v16-9-biomechanics-preview/
+      url: ${{ steps.deployment.outputs.page_url }}v17-0-biomechanics-preview/
     steps:
-      - name: Check out V16.9 preview source, leave main game files unchanged
+      - name: Check out V17.0 preview source, keep main animation files intact
         uses: actions/checkout@v4
         with:
-          ref: v16-9-biomechanics-preview
+          ref: v17-0-biomechanics-integration
           persist-credentials: false
       - name: Configure Pages
         uses: actions/configure-pages@v5
@@ -34,7 +34,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
-          name: v169-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          name: v170-pages-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Wait for auto-generated default Pages run to finish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,6 +49,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          artifact_name: v169-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact_name: v170-pages-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Preview URL
-        run: echo "Site -> ${{ steps.deployment.outputs.page_url }}v16-9-biomechanics-preview/"
+        run: echo "Site -> ${{ steps.deployment.outputs.page_url }}v17-0-biomechanics-preview/"
