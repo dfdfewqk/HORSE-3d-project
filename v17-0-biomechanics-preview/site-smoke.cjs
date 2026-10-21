@@ -22,6 +22,11 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-0-biomechanics-previe
    return {error:document.getElementById('error')?.textContent||w.__horseV170Error||'',
     ready:!!w.__horseV170?.ready,joints:g.skins[0].joints.length,
     candidateNames:g.animations.filter(x=>x.name.startsWith('V17_0_')).map(x=>x.name),
+    stability:w.__horseV170?.results&&Object.fromEntries(Object.entries(w.__horseV170.results).map(([k,v])=>[k,{
+      maxCorrectionStepDeg:v.maxCorrectionStepDeg,
+      maxCorrectionAccelerationDeg:v.maxCorrectionAccelerationDeg,
+      antiJitter:v.antiJitter,
+    }])),
     oldControls:!!document.getElementById('chooseV169')||!!document.getElementById('compare'),
     oldPanels:!!document.getElementById('walkFitButton')||!!document.getElementById('walk169Audit'),
     buttons:document.querySelectorAll('[data-v17-mode]').length,
@@ -29,6 +34,12 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-0-biomechanics-previe
   });
   assert.equal(info.error,'');assert.equal(info.ready,true);assert.equal(info.joints,19);
   assert.equal(info.candidateNames.length,4);assert.equal(info.buttons,5);
+  for(const mode of ['walk','cruise','fast','sprint']){
+    const stats=info.stability?.[mode];
+    assert.ok(stats?.antiJitter?.includes('cyclic Gaussian'),'new stabilized build must be deployed for '+mode);
+    assert.ok(stats.maxCorrectionStepDeg<=1,'IK delta jump regressed '+mode);
+    assert.ok(stats.maxCorrectionAccelerationDeg<=.18,'IK jerk regressed '+mode);
+  }
   assert.equal(info.oldControls,false);assert.equal(info.oldPanels,false);
   assert.doesNotMatch(info.legacyLabels,/V16\./);
   await page.waitForFunction(()=>document.getElementById('status')?.dataset.mode==='v17',null,{timeout:30000});
