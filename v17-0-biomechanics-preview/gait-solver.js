@@ -149,6 +149,19 @@ function bake(g,mode,builder,geometry){
    if(stats.stance)nContact++;
   }
  }
+ // The first independent frame fits made stance feet jump by 99-437mm.
+ // Smooth EACH joint trajectory periodically, not per-frame alpha guards.
+ // This intentionally prioritizes temporal continuity even if some
+ // instantaneous hoof clearance must be compromised and re-tested.
+ const boneList=[...new Set(Object.values(geometry.ids).flat())];
+ for(const id of boneList){
+  const values=frames.map(p=>angle(p[id].q));
+  for(let i=0;i<N;i++){
+   const prev=values[(i+N-1)%N],next=values[(i+1)%N];
+   const avg=.64*values[i]+.18*(prev+next);
+   frames[i][id].q=quat(avg);
+  }
+ }
  // Clip sampling is frame-indexed, cyclic, and leaves all source clips intact.
  const samples=Float32Array.from({length:N},(_,i)=>i*src.duration/N),channels=src.channels.map(ch=>{
   const n=ch.path==='rotation'?4:3,data=new Float32Array(N*n);
