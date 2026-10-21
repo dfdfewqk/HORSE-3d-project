@@ -183,7 +183,7 @@ function bake(g,mode,builder,geom){
   const amp=[.072,.065,.065,.046,.046];
   const poses=training.map(i=>frames[i]),base=training.map(i=>before[i]),
    targets=training.map(i=>gaitTarget(i,config,leg,geom)),
-   metricBases=training.map((i,j)=>geom.foot(poses[j],leg,false));
+   metricBases=[];
   function apply(coeffs){
    for(let n=0;n<training.length;n++){
     const f=training[n],p=poses[n];
@@ -207,9 +207,9 @@ function bake(g,mode,builder,geom){
   apply(coeff);let best=objective();
   for(const step of [.045,.022,.011]){
    for(let pass=0;pass<2;pass++)for(let j=0;j<ids.length;j++)for(let k=0;k<5;k++){
-    let win=coeff[j][k],localBest=best;
+    const original=coeff[j][k];let win=original,localBest=best;
     for(const direction of [-1,1]){
-     const candidate=clamp(coeff[j][k]+direction*step,-amp[k],amp[k]);
+     const candidate=clamp(original+direction*step,-amp[k],amp[k]);
      if(Math.abs(candidate-coeff[j][k])<1e-8)continue;
      coeff[j][k]=candidate;apply(coeff);
      const cost=objective();trialCount++;
