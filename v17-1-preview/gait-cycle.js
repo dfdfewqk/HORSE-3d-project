@@ -219,8 +219,12 @@ function bake(g,mode,builder,geom){
     if(localBest<best){best=localBest;optimized++;}
    }
   }
+  // Geometry-guarded conservative output: most of the original cycle
+  // is retained because the 19-bone skin already overstretches near joints.
+  // Do not trade a slight contact win for further visible tissue distortion.
+  const acceptedScale=.25;
   for(let i=0;i<N;i++)ids.forEach((id,j)=>
-    frames[i][id].q=qmultiply(before[i][id].q,xdelta(phaseCorrection(coeff[j],i))));
+    frames[i][id].q=qmultiply(before[i][id].q,xdelta(acceptedScale*phaseCorrection(coeff[j],i))));
  }
  const sampleTimes=Float32Array.from({length:N},(_,i)=>src.duration*i/N);
  const channels=src.channels.map(ch=>{
