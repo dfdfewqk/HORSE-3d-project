@@ -178,7 +178,7 @@ function bake(g,mode,builder,geometry){
 }
 let tries=0;
 const timer=setInterval(()=>{
- if(!window.__horseV169Candidate?.ready||!window.__horseV167Builder||!window.__horseV168Bridge?.ready||
+ if(!window.__horseV167?.ready||!window.__horseV167Builder||!window.__horseV170Bridge?.ready||
     !window.__horseV16Targets?.collect||!window.__viewerReady){
   if(++tries>900){clearInterval(timer);window.__horseV170Error='Existing GLB runtimes failed to initialize';}
   return;
@@ -190,7 +190,7 @@ const timer=setInterval(()=>{
   // Suspend animation while generating isolated new clips.
   for(const mode of MODES){
    const built=bake(g,mode,builder,geom),id=g.animations.length;
-   g.animations.push(built.clip);window.__horseV168Bridge.registerV17(mode,id);
+   g.animations.push(built.clip);window.__horseV170Bridge.registerV17(mode,id);
    results[mode]={index:id,...built.stats};
   }
   window.__horseV170={ready:true,version:'V17.0',results,originalGlbPreserved:true,
