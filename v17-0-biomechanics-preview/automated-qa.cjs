@@ -35,7 +35,7 @@ try{
   const selector='[data-v17-mode="'+mode+'"]',btn=page.locator(selector);
   await btn.click();
   const state=await page.evaluate(mode=>{
-   const w=document.getElementById('viewer').contentWindow,s=w.__horseV168Bridge.snapshot();
+   const w=document.getElementById('viewer').contentWindow,s=w.__horseV170Bridge.snapshot();
    const btn=document.querySelector('[data-v17-mode="'+mode+'"]');
    return {...s,buttonPressed:btn.getAttribute('aria-pressed'),
     label:document.getElementById('currentGait')?.textContent};
@@ -45,10 +45,20 @@ try{
   assert.equal(state.buttonPressed,'true');
   assert.match(state.label,/V17.0/);
   evidence.ui.push(state);
-  await page.evaluate(()=>document.getElementById('viewer').contentWindow.__horseV168Bridge.compare());
-  const old=await page.evaluate(()=>document.getElementById('viewer').contentWindow.__horseV168Bridge.snapshot());
-  assert.equal(old.version,'new');
+  assert.equal(state.selectMatches,true);
+  assert.equal(state.playing,true);
  }
+ const cleaned=await page.evaluate(()=>({
+   oldControls:!!document.getElementById('chooseV169')||!!document.getElementById('compare'),
+   oldReports:!!document.getElementById('walkFitButton')||!!document.getElementById('walk169Audit'),
+   currentButtons:document.querySelectorAll('[data-v17-mode]').length,
+   oldLabels:/Walk V16\.7|Walk V16\.9|이전 버전과 비교/.test(document.getElementById('bar')?.textContent||'')
+ }));
+ assert.equal(cleaned.oldControls,false);
+ assert.equal(cleaned.oldReports,false);
+ assert.equal(cleaned.oldLabels,false);
+ assert.equal(cleaned.currentButtons,5);
+ evidence.cleanedUI=cleaned;
  evidence.metrics=await page.evaluate(()=>document.getElementById('viewer').contentWindow.__horseV170QA.run());
  assert.equal(evidence.metrics.totalSkinSamples,1280);
  assert.equal(evidence.metrics.edgeCohorts.fore,3107);
