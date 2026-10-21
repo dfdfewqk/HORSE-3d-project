@@ -1,161 +1,93 @@
-/* HORSE RANCH V16.8 — isolated bridge for the real legacy viewer.
- * Canonical state is clipIndex/animTime/play in legacy-v7, not toolbar text.
- * Keeps V16.7/V16.9 animation and GLB immutable; V17 candidates isolated.
+/* HORSE RANCH V17.0 — current-only playback bridge.
+ * Historical gait clips remain as internal, protected algorithm dependencies.
+ * No old-version choice or comparison UI; never mutates original GLB/skin.
  */
-(function(){'use strict';
- let attempts=0;
- const timer=setInterval(()=>{
-  if(!window.__horseV167?.ready||!window.__horseV167Visual?.ready||!window.__viewerReady){
-   if(++attempts>900){clearInterval(timer);window.__horseV168BridgeError='Legacy viewer or source clips unavailable';}
+(function(){'use strict';let attempts=0;
+ const loop=setInterval(()=>{
+  if(!window.__horseV167?.ready||!window.__viewerReady){
+   if(++attempts>900){clearInterval(loop);window.__horseV170BridgeError='Base model/runtime failed to load';}
    return;
   }
-  clearInterval(timer);
+  clearInterval(loop);
   try{
-   const g=object3d,source=window.__horseV167,ids=['walk','cruise','fast','sprint'],
-    selectEl=document.getElementById('animations'),rate=document.getElementById('speed'),
-    idle=Number([...selectEl.options].find(x=>x.textContent.trim()==='정지 자세')?.value);
-   if(!Number.isInteger(idle)||idle>=0||g.skins[0].joints.length!==19)throw Error('Original Idle/rig changed');
-   const map=new Map([[idle,{mode:'idle',version:'idle'}]]),experimental={},nextGeneration={};
-   for(const mode of ids){
-    const old=source.sourceIndexes[mode],fresh=source.clipIndexes[mode];
-    if(!Number.isInteger(old)||!Number.isInteger(fresh)||old<0||fresh<0||old===fresh)
-     throw Error('V16.8 invalid clip mapping '+mode);
-    map.set(old,{mode,version:'old'});map.set(fresh,{mode,version:'new'});
-   }
-   let transition=null,suppress=false,lowerChange=null;
-   const setButton=()=>{playBtn.textContent=play&&clipIndex>=0?'⏸ 일시정지':'▶ 재생';};
-   const unit=x=>Math.min(1,Math.max(0,x));
-   const copyPose=()=>g.nodes.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));
-   const originalSetClip=setClip;
-   setClip=function(model){
-    originalSetClip(model);
-    if(!transition||model!==g)return;
-    const alpha=unit((performance.now()-transition.start)/transition.duration),
-     t=alpha*alpha*(3-2*alpha);
-    for(let i=0;i<g.nodes.length;i++){
-     const n=g.nodes[i],from=transition.pose[i];
-     if(!from)continue;
+   const model=object3d,options=document.getElementById('animations'),
+    rate=document.getElementById('speed'),ids=['walk','cruise','fast','sprint'],
+    names={walk:'Walk',cruise:'Gallop Cruise',fast:'Gallop Fast',sprint:'Gallop Sprint'},
+    idle=Number([...options.options].find(o=>o.textContent.trim()==='정지 자세')?.value),
+    registered={},indexModes=new Map([[idle,'idle']]);
+   if(!Number.isInteger(idle)||idle>=0||model.skins?.[0]?.joints?.length!==19)
+    throw Error('Original idle or 19-joint rig missing');
+   let transition=null;
+   const copyPose=()=>model.nodes.map(n=>({t:n.t.slice(),q:n.q.slice(),s:n.s.slice()}));
+   const nativeSetClip=setClip;
+   setClip=function(g){
+    nativeSetClip(g);
+    if(!transition||g!==model)return;
+    const progress=Math.min(1,Math.max(0,(performance.now()-transition.started)/180)),
+     t=progress*progress*(3-2*progress);
+    for(let i=0;i<model.nodes.length;i++){
+     const node=model.nodes[i],prior=transition.pose[i];
      for(let k=0;k<3;k++){
-      n.t[k]=from.t[k]*(1-t)+n.t[k]*t;
-      n.s[k]=from.s[k]*(1-t)+n.s[k]*t;
+      node.t[k]=prior.t[k]*(1-t)+node.t[k]*t;
+      node.s[k]=prior.s[k]*(1-t)+node.s[k]*t;
      }
-     let sign=0;for(let k=0;k<4;k++)sign+=from.q[k]*n.q[k];
-     const q=new Array(4);for(let k=0;k<4;k++)q[k]=from.q[k]*(1-t)+n.q[k]*t*(sign<0?-1:1);
-     const norm=Math.hypot(...q);
-     if(norm>.00001)for(let k=0;k<4;k++)n.q[k]=q[k]/norm;
+     let dot=0;for(let k=0;k<4;k++)dot+=prior.q[k]*node.q[k];
+     const sign=dot<0?-1:1,interp=[];
+     for(let k=0;k<4;k++)interp.push(prior.q[k]*(1-t)+node.q[k]*t*sign);
+     const norm=Math.hypot(...interp);
+     if(norm>1e-9)for(let k=0;k<4;k++)node.q[k]=interp[k]/norm;
     }
-    if(alpha>=1)transition=null;
+    if(progress>=1)transition=null;
    };
    function snapshot(){
-    const index=clipIndex,clip=g.animations[index],id=map.get(index)||{mode:'unknown',version:'unknown'};
-    const duration=clip?.duration||0;
-    return {index,mode:id.mode,version:id.version,clip:clip?.name||'정지 자세',
-     playing:!!play&&index>=0,speed:Number(rate.value),duration,
-     phase:duration>0?((animTime%duration)+duration)%duration/duration:0,
-     blending:!!transition,selectMatches:String(selectEl.value)===String(index)};
+    const index=clipIndex,clip=model.animations[index],duration=clip?.duration||0;
+    return {mode:indexModes.get(index)||'unregistered',version:indexModes.has(index)?'v17':'loading',
+     index,clip:clip?.name||'정지 자세',playing:!!play&&index>=0,
+     speed:Number(rate.value),duration,
+     phase:duration?((animTime%duration)+duration)%duration/duration:0,
+     blending:!!transition,selectMatches:String(options.value)===String(index)};
    }
-   function updateMode(s){
-    if(s.mode==='unknown')return;
-    for(const obj of [window.__horseV15,window.__horseV14]){
-     if(!obj)continue;
-     obj.mode=s.mode;obj.selectedClip=s.clip;
+   function choose(mode){
+    if(mode!=='idle'&&!ids.includes(mode))throw Error('Unsupported mode '+mode);
+    const next=mode==='idle'?idle:registered[mode];
+    if(!Number.isInteger(next))throw Error('V17 gait has not been baked: '+mode);
+    const before=snapshot();
+    if(before.index===next)return before;
+    const pose=copyPose(),other=mode==='idle'?null:[...options.options].find(o=>o.textContent.trim()===names[mode]);
+    if(mode!=='idle'&&!other)throw Error('Missing native selector for '+mode);
+    if(other)other.value=String(next);
+    options.value=String(next);
+    options.dispatchEvent(new Event('change',{bubbles:true}));
+    if(clipIndex!==next||String(options.value)!==String(next))
+     throw Error('Native clip selection did not update '+mode);
+    const target=model.animations[next];
+    animTime=target?.duration?before.phase*target.duration:0;
+    play=mode!=='idle';
+    transition={pose,started:performance.now()};
+    playBtn.textContent=play?'⏸ 일시정지':'▶ 재생';
+    for(const runtime of [window.__horseV14,window.__horseV15]){
+     if(runtime){runtime.mode=mode;runtime.selectedClip=target?.name||'정지 자세';}
     }
-   }
-   const labels={walk:'Walk',cruise:'Gallop Cruise',fast:'Gallop Fast',sprint:'Gallop Sprint'};
-   function ensureOption(destination){
-    const resolved=map.get(destination);
-    if(!resolved)throw Error('No mapped gait for clip '+destination);
-    if(resolved.mode==='idle')return;
-    const option=[...selectEl.options].find(o=>o.textContent.trim()===labels[resolved.mode]);
-    if(!option)throw Error('Missing five-mode option '+resolved.mode);
-    // Previous clips are not selectable by value unless a REAL option owns
-    // that value. Assigning a missing value clears HTMLSelectElement.value.
-    option.value=String(destination);
-   }
-   function nextPose(origin,destination,wasPlaying){
-    if(!Number.isInteger(destination)||!map.has(destination))
-     throw Error('V16.8 invalid clip request '+destination);
-    if(origin.index===destination)return origin;
-    const sourcePose=copyPose();
-    const oldPhase=origin.phase;
-    suppress=true;
-    try{ensureOption(destination);selectEl.value=String(destination);selectEl.dispatchEvent(new Event('change',{bubbles:true}));}
-    finally{suppress=false;}
-    if(clipIndex!==destination||selectEl.value!==String(destination))
-     throw Error('Legacy selection mismatch after change: '+destination+'/'+selectEl.value);
-    const target=g.animations[destination];
-    animTime=target?.duration?oldPhase*target.duration:0;
-    play=destination>=0&&wasPlaying;
-    setButton();
-    transition={pose:sourcePose,start:performance.now(),duration:180};
-    const state=snapshot();updateMode(state);return state;
-   }
-   function choose(mode,version='new'){
-    if(mode==='idle')return nextPose(snapshot(),idle,false);
-    if(!ids.includes(mode)||!['new','old','experimental','v17'].includes(version))
-     throw Error('Invalid gait comparison request');
-    if(version==='experimental'){
-     if(!Number.isInteger(experimental[mode]))throw Error('Unregistered experiment '+mode);
-     return nextPose(snapshot(),experimental[mode],true);
-    }
-    if(version==='v17'){
-     if(!Number.isInteger(nextGeneration[mode]))throw Error('V17 candidate unavailable for '+mode);
-     return nextPose(snapshot(),nextGeneration[mode],true);
-    }
-    return nextPose(snapshot(),source[version==='new'?'clipIndexes':'sourceIndexes'][mode],true);
-   }
-   function registerCandidate(mode,index){
-    if(!ids.includes(mode)||!Number.isInteger(index)||!g.animations[index]||
-       map.has(index)||!g.animations[index].name.includes('V16_9'))
-     throw Error('Invalid candidate registration');
-    map.set(index,{mode,version:'experimental'});
-    experimental[mode]=index;return index;
+    return snapshot();
    }
    function registerV17(mode,index){
-    if(!ids.includes(mode)||!Number.isInteger(index)||!g.animations[index]||
-       map.has(index)||!g.animations[index].name.startsWith('V17_0_'))
-     throw Error('Invalid V17 candidate registration '+mode);
-    map.set(index,{mode,version:'v17'});nextGeneration[mode]=index;
+    if(!ids.includes(mode)||Number.isInteger(registered[mode])||
+       !Number.isInteger(index)||!model.animations[index]?.name.startsWith('V17_0_'))
+     throw Error('Invalid V17 clip registration: '+mode);
+    registered[mode]=index;indexModes.set(index,mode);
     return index;
    }
-   selectEl.addEventListener('change',()=>{
-    if(suppress)return;
-    const before=snapshot(),pose=copyPose();
-    lowerChange={before,pose};
-    queueMicrotask(()=>{
-     const event=lowerChange;if(!event||event.before!==before)return;lowerChange=null;
-     if(clipIndex===before.index)return;
-     const target=g.animations[clipIndex];
-     animTime=target?.duration?before.phase*target.duration:0;
-     play=clipIndex>=0?before.playing:false;
-     setButton();transition={pose,start:performance.now(),duration:180};
-     updateMode(snapshot());
-    });
-   },{capture:true});
-   playBtn.addEventListener('click',()=>{if(clipIndex<0){play=false;setButton();}});
-   const api={ready:true,version:'V17.0',snapshot,choose,registerCandidate,registerV17,
-    chooseIdle:()=>choose('idle'),compare:()=>{
-     const s=snapshot();
-      if(s.mode==='idle'||s.mode==='unknown')return s;
-      if(Number.isInteger(nextGeneration[s.mode]))
-       return choose(s.mode,s.version==='v17'?'new':'v17');
-      if(Number.isInteger(experimental[s.mode]))
-       return choose(s.mode,s.version==='experimental'?'new':'experimental');
-      return choose(s.mode,s.version==='new'?'old':'new');
-    },setPlaying:enabled=>{
-     if(clipIndex<0){play=false;}else play=!!enabled;setButton();return snapshot();
-    },setSpeed:factor=>{
-     const value=Number(factor),min=Number(rate.min),max=Number(rate.max);
-     if(!Number.isFinite(value)||value<min||value>max)throw Error('Out-of-range playback speed');
-     const step=Number(rate.step)||.25;
-     rate.value=String(Math.round(value/step)*step);
+   window.__horseV170Bridge={ready:true,choose,chooseIdle:()=>choose('idle'),registerV17,snapshot,
+    setPlaying:on=>{play=clipIndex>=0&&!!on;playBtn.textContent=play?'⏸ 일시정지':'▶ 재생';return snapshot();},
+    setSpeed:v=>{
+     const n=Number(v);if(!Number.isFinite(n)||n<Number(rate.min)||n>Number(rate.max))
+      throw Error('Invalid playback speed');
+     rate.value=String(n);
      rate.dispatchEvent(new Event('input',{bubbles:true}));
      rate.dispatchEvent(new Event('change',{bubbles:true}));
      return snapshot();
     },stopTransition:()=>{transition=null;return snapshot();},
-    sourceOfTruth:'legacy clipIndex',preservesOriginalGlb:true,
-    manualChromeVisualPass:false,physicalHoofContactValidated:false};
-   window.__horseV168Bridge=api;
-  }catch(e){window.__horseV168BridgeError=String(e?.stack||e);console.error(e);}
- },90);
+    registered,originalGlbPreserved:true};
+  }catch(e){window.__horseV170BridgeError=String(e?.stack||e);console.error(e);}
+ },100);
 })();
