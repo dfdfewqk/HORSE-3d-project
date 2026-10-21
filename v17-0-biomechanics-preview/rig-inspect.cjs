@@ -4,8 +4,8 @@ const {chromium}=require('playwright'),fs=require('node:fs');
 const browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader']});
 try{
 const p=await browser.newPage();
-await p.goto('http://127.0.0.1:8765/v16-9-biomechanics-preview/');
-await p.waitForFunction(()=>document.getElementById('viewer')?.contentWindow?.__horseV169Candidate?.ready,null,{timeout:120000});
+await p.goto('http://127.0.0.1:8765/v17-0-biomechanics-preview/');
+await p.waitForFunction(()=>document.getElementById('viewer')?.contentWindow?.__horseV170?.ready,null,{timeout:120000});
 const result=await p.evaluate(()=>{
 const w=document.getElementById('viewer').contentWindow,g=w.eval('object3d'),nodes=g.doc.nodes,skin=g.skins[0];
 const parents={};for(const n of nodes)for(const c of n.children||[])parents[c]=n.name;
