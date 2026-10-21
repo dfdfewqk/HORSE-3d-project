@@ -15,11 +15,11 @@ try{
  await page.goto('http://127.0.0.1:8765/v17-0-biomechanics-preview/?debug',{waitUntil:'domcontentloaded',timeout:120000});
  await page.waitForFunction(()=>{
   const w=document.getElementById('viewer')?.contentWindow;
-  return w?.__horseV170?.ready||w?.__horseV170Error||document.getElementById('alert')?.style.display==='block';
+  return w?.__horseV170?.ready||w?.__horseV170Error||document.getElementById('error')?.style.display==='block';
  },null,{timeout:240000});
  evidence.runtime=await page.evaluate(()=>{
   const w=document.getElementById('viewer').contentWindow,g=w.eval('object3d');
-  return {error:w.__horseV170Error||document.getElementById('alert').textContent,
+  return {error:w.__horseV170Error||document.getElementById('error').textContent,
    ready:!!w.__horseV170?.ready,results:w.__horseV170?.results,
    originalJointCount:g.skins[0].joints.length,
    originalMeshVertices:w.readAccessor(g,g.doc.meshes[0].primitives[0].attributes.POSITION).length/3,
@@ -38,7 +38,7 @@ try{
    const w=document.getElementById('viewer').contentWindow,s=w.__horseV170Bridge.snapshot();
    const btn=document.querySelector('[data-v17-mode="'+mode+'"]');
    return {...s,buttonPressed:btn.getAttribute('aria-pressed'),
-    label:document.getElementById('currentGait')?.textContent};
+    label:document.getElementById('status')?.textContent};
   },mode);
   assert.equal(state.version,'v17');
   assert.equal(state.mode,mode);
