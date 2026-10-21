@@ -1,9 +1,9 @@
 /* HORSE RANCH V17.1 actual GLB CPU audit: V16.2/V16.7 real-GLB geometry, read-only */
 (function(){'use strict';
-const N=160,names={walkOld:'Walk_V16_7_FOOTFALL',walk:'V17_1_WALK_CONTACT_IK_EXPERIMENT',
- cruiseOld:'Gallop_V16_7_CRUISE',cruise:'V17_1_CRUISE_CONTACT_IK_EXPERIMENT',
- fastOld:'Gallop_V16_7_FAST',fast:'V17_1_FAST_CONTACT_IK_EXPERIMENT',
- sprintOld:'Gallop_V16_7_SPRINT',sprint:'V17_1_SPRINT_CONTACT_IK_EXPERIMENT'};
+const N=160,names={walkOld:'Walk_V16_7_FOOTFALL',walk:'V17_1_WALK_CYCLE_IK_EXPERIMENT',
+ cruiseOld:'Gallop_V16_7_CRUISE',cruise:'V17_1_CRUISE_CYCLE_IK_EXPERIMENT',
+ fastOld:'Gallop_V16_7_FAST',fast:'V17_1_FAST_CYCLE_IK_EXPERIMENT',
+ sprintOld:'Gallop_V16_7_SPRINT',sprint:'V17_1_SPRINT_CYCLE_IK_EXPERIMENT'};
 const state={status:'idle',progress:0,result:null,error:null,run};
 window.__horseV171QA=state;
 function ok(x,label){if(!Number.isFinite(x))throw Error('Nonfinite '+label);return x;}
