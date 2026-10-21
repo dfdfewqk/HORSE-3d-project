@@ -1,8 +1,8 @@
-name: Publish HORSE RANCH V17.0 public browser preview
+name: Publish HORSE RANCH V17.1 public browser preview
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-v170-preview.yml']
+    paths: ['.github/workflows/publish-v171-preview.yml']
   workflow_dispatch:
 
 permissions:
@@ -15,39 +15,40 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish-v170-stabilized:
+  publish-v171-stabilized:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}v17-0-biomechanics-preview/
+      url: ${{ steps.deployment.outputs.page_url }}v17-1-preview/
     steps:
-      - name: Check out V17.0 preview source, keep main animation files intact
+      - name: Check out V17.1 preview source, keep main animation files intact
         uses: actions/checkout@v4
         with:
-          ref: v17-0-biomechanics-integration
+          ref: v17-1-anatomical-gait-rebuild
           persist-credentials: false
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
-      - name: Ensure only V17 preview pages remain
+      - name: Ensure only V17.1 preview pages remain
         run: |
-          test -f v17-0-biomechanics-preview/index.html
+          test -f v17-1-preview/index.html
           test -f legacy-v7.html
           ! test -e v16-8-full-gait-preview/index.html
           ! test -e v16-9-biomechanics-preview/index.html
           ! test -e v16-7-full-gait-preview/index.html
+          ! test -e v17-0-biomechanics-preview/index.html
           test -f v16-7-full-gait-preview/gait-runtime.js
-      - name: Log actual stabilized motion source commit
+      - name: Log current motion source commit
         run: |
-          echo "V17.0 latest four-gait anti-tremor candidate"
+          echo "V17.1 cycle-wide contact and skin-check candidate"
           git rev-parse HEAD
-          test -f v17-0-biomechanics-preview/gait-solver.js
+          test -f v17-1-preview/gait-cycle.js
       - name: Upload real GLB viewer and animation assets
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
-          name: v170-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          name: v171-pages-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Wait for auto-generated default Pages run to finish
         env:
           GH_TOKEN: ${{ github.token }}
@@ -62,6 +63,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
         with:
-          artifact_name: v170-pages-${{ github.run_id }}-${{ github.run_attempt }}
+          artifact_name: v171-pages-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Preview URL
-        run: echo "Site -> ${{ steps.deployment.outputs.page_url }}v17-0-biomechanics-preview/"
+        run: echo "Site -> ${{ steps.deployment.outputs.page_url }}v17-1-preview/"
