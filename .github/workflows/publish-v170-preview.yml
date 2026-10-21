@@ -2,7 +2,7 @@ name: Publish HORSE RANCH V17.0 public browser preview
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/publish-v169-preview.yml']
+    paths: ['.github/workflows/publish-v170-preview.yml']
   workflow_dispatch:
 
 permissions:
@@ -30,6 +30,14 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Ensure only V17 preview pages remain
+        run: |
+          test -f v17-0-biomechanics-preview/index.html
+          test -f legacy-v7.html
+          ! test -e v16-8-full-gait-preview/index.html
+          ! test -e v16-9-biomechanics-preview/index.html
+          ! test -e v16-7-full-gait-preview/index.html
+          test -f v16-7-full-gait-preview/gait-runtime.js
       - name: Upload real GLB viewer and animation assets
         uses: actions/upload-pages-artifact@v3
         with:
