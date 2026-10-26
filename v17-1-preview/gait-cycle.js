@@ -248,7 +248,7 @@ function bodyFromSupport(g,mode,frames,timeline,geom,game){
 function solveLimbs(mode,frames,prior,timeline,targets,geom){
  const training=Array.from({length:28},(_,j)=>Math.floor(j*N/28)),
   amp=[.075,.063,.063,.045,.045],optimizer={attempts:0,improvements:0,selectedScales:{}};
- const scales=mode==='walk'?[0,.15,.25,.4,.6]:[0,.15,.25,.4,.6,.8,1];
+ const scales=mode==='walk'||mode==='sprint'?[0,.15,.25,.4,.6]:mode==='fast'?[0,.15,.25,.4,.6,.8]:[0,.15,.25,.4,.6,.8,1];
  for(const leg of FEET){
   const ids=geom.chains[leg],coeff=ids.map(()=>new Float64Array(5)),
    poses=training.map(i=>frames[i]),base=training.map(i=>prior[i]),
@@ -276,7 +276,7 @@ function solveLimbs(mode,frames,prior,timeline,targets,geom){
      if(prev&&prev.stance && training[j]-prev.frame<=7){
       const actualStep=v.z-prev.z;
       const requiredStep=t.z-prev.targetZ;
-      error+=28*(actualStep-requiredStep)**2;
+      error+=(mode==='fast'?90:mode==='sprint'?55:28)*(actualStep-requiredStep)**2;
      }
     }
     prev={stance:t.stance,frame:training[j],z:v.z,targetZ:t.z};
