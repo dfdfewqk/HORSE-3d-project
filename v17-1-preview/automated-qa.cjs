@@ -30,6 +30,29 @@ try{
  assert.equal(evidence.runtime.originalJointCount,19);
  assert.equal(evidence.runtime.originalMeshVertices,24314);
  assert.equal(evidence.runtime.nV170Clips,4);
+ // Regression gate: the four gait clips MUST be produced by the new
+ // phase -> hoof -> coupled-limb IK -> body -> measurement pipeline.
+ for(const [mode,detail] of Object.entries(evidence.runtime.results||{})){
+  assert.equal(detail.method,'phase-foot-trajectory-coordinated-IK-body-validation',
+   'Old separate-angle solver still active: '+mode);
+  assert.equal(detail.phasePhases,160);
+  assert.deepEqual(detail.contactFootIds,['HindR','ForeR','HindL','ForeL']);
+  assert.equal(detail.referenceJointCount,19);
+  assert.equal(detail.originalSkinPreserved,true);
+  assert.equal(Object.keys(detail.selectedIKScales||{}).length,4);
+  assert.ok(detail.maxFullJointStepDeg<9);
+ }
+ evidence.transitions=[];
+ for(const [from,to] of [['walk','cruise'],['cruise','fast'],['fast','sprint'],['sprint','walk']]){
+  await page.locator('[data-v17-mode="'+from+'"]').click();
+  await page.waitForTimeout(70);
+  const before=await page.evaluate(()=>document.getElementById('viewer').contentWindow.__horseV171Bridge.snapshot());
+  await page.locator('[data-v17-mode="'+to+'"]').click();
+  const after=await page.evaluate(()=>document.getElementById('viewer').contentWindow.__horseV171Bridge.snapshot());
+  assert.equal(after.mode,to);assert.equal(after.version,'v171');
+  assert.ok(Number.isFinite(after.phase)&&after.phase>=0&&after.phase<=1);
+  evidence.transitions.push({from,to,phaseFrom:before.phase,phaseTo:after.phase});
+ }
  evidence.ui=[];
  for(const mode of ['walk','cruise','fast','sprint']){
   const selector='[data-v17-mode="'+mode+'"]',btn=page.locator(selector);
