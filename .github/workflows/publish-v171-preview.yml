@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish-v171-game-motion:
+  publish-v171-kinematic-pipeline:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -41,10 +41,14 @@ jobs:
           test -f v16-7-full-gait-preview/gait-runtime.js
       - name: Log current motion source commit
         run: |
-          echo "V17.1 game motion polish: moderated reach, stance, knee/hock recovery"
+          echo "V17.1 phase → hoof target → coordinated whole-limb IK → support body → real GLB validation"
           git rev-parse HEAD
           test -f v17-1-preview/gait-cycle.js
-          grep -q 'sprint:{reach:.84' v17-1-preview/gait-cycle.js
+          grep -q 'function phaseTimeline' v17-1-preview/gait-cycle.js
+          grep -q 'function hoofTrajectory' v17-1-preview/gait-cycle.js
+          grep -q 'function solveLimbs' v17-1-preview/gait-cycle.js
+          grep -q 'function bodyFromSupport' v17-1-preview/gait-cycle.js
+          grep -q 'phase-foot-trajectory-coordinated-IK-body-validation' v17-1-preview/gait-cycle.js
       - name: Upload real GLB viewer and animation assets
         uses: actions/upload-pages-artifact@v3
         with:
