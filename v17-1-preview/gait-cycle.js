@@ -248,7 +248,7 @@ function bodyFromSupport(g,mode,frames,timeline,geom,game){
 function solveLimbs(mode,frames,prior,timeline,targets,geom){
  const training=Array.from({length:28},(_,j)=>Math.floor(j*N/28)),
   amp=[.075,.063,.063,.045,.045],optimizer={attempts:0,improvements:0,selectedScales:{}};
- const scales=[0,.15,.25,.4,.6,.8,1];
+ const scales=mode==='walk'?[0,.15,.25,.4,.6]:[0,.15,.25,.4,.6,.8,1];
  for(const leg of FEET){
   const ids=geom.chains[leg],coeff=ids.map(()=>new Float64Array(5)),
    poses=training.map(i=>frames[i]),base=training.map(i=>prior[i]),
@@ -276,13 +276,13 @@ function solveLimbs(mode,frames,prior,timeline,targets,geom){
      if(prev&&prev.stance && training[j]-prev.frame<=7){
       const actualStep=v.z-prev.z;
       const requiredStep=t.z-prev.targetZ;
-      error+=4*(actualStep-requiredStep)**2;
+      error+=28*(actualStep-requiredStep)**2;
      }
     }
     prev={stance:t.stance,frame:training[j],z:v.z,targetZ:t.z};
     maxPen=Math.max(maxPen,pen);
     maxSkin=Math.max(maxSkin,v.skinStretch);
-    if(full||j%4===0)error+=28*Math.max(0,v.skinStretch-1.19)**2;
+    if(full||j%4===0)error+=48*Math.max(0,v.skinStretch-1.19)**2;
    }
    for(const a of coeff)for(let k=0;k<a.length;k++)
     error+=(k===0?.025:k<=2?.03:.050)*a[k]*a[k];
@@ -309,7 +309,7 @@ function solveLimbs(mode,frames,prior,timeline,targets,geom){
   for(const scale of scales){
    apply(scale);
    const measured=evalCost(true);
-   const excessiveSkin=measured.maxSkin>baselineSkin+.008;
+   const excessiveSkin=measured.maxSkin>baselineSkin+.004;
    // Geometry-based reject; still permits fixing a bad baseline cautiously.
    if(excessiveSkin)continue;
    const regularizer=Math.abs(scale)*.000025;
