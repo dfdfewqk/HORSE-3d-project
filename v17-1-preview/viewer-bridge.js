@@ -47,12 +47,46 @@
      phase:duration?((animTime%duration)+duration)%duration/duration:0,
      blending:!!transition,selectMatches:String(options.value)===String(index)};
    }
+   // Phase-matched transition: find a target gait time whose planted feet
+   // and 14 real joint rotations are most compatible with the current pose.
+   // Do not copy an arbitrary normalized timestamp from Walk to Sprint.
+   function matchedPhase(mode,before,next){
+    if(before.mode==='idle'||before.mode==='unregistered'||!Number.isFinite(before.phase))
+     return 0;
+    if(before.mode===mode)return before.phase;
+    const builder=window.__horseV167Builder,configs=builder?.configs;
+    if(!configs?.[mode])return before.phase;
+    const from=configs[before.mode],to=configs[mode],
+     nodes=model.doc.nodes,joints=new Set([...Object.values(builder.chains).flat()]),
+     channels=next.channels.filter(c=>c.path==='rotation'&&joints.has(nodes[c.node]?.name)),
+     distance=(a,b)=>{const delta=Math.abs(a-b);return Math.min(delta,1-delta);},
+     contact=(cfg,leg,phase)=>{
+      const p=frac(phase-cfg.touch[leg]);
+      return p<(leg.startsWith('Fore')?cfg.stance.fore:cfg.stance.hind);
+     };
+    let scoreBest=Infinity,phaseBest=before.phase;
+    for(let i=0;i<64;i++){
+     const candidate=i/64;let score=.22*distance(candidate,before.phase)**2;
+     if(from)for(const leg of Object.keys(builder.chains))
+      if(contact(from,leg,before.phase)!==contact(to,leg,candidate))
+       score+=(leg.startsWith('Fore')?.30:.21);
+     for(const ch of channels){
+      const desired=builder.sample(ch.sam,next.duration*candidate,4),
+       now=model.nodes[ch.node].q,cos=Math.abs(now.reduce((v,x,k)=>v+x*desired[k],0));
+      score+=.22*(1-Math.min(1,cos))**2;
+     }
+     if(score<scoreBest){scoreBest=score;phaseBest=candidate;}
+    }
+    return phaseBest;
+   }
+   function frac(v){return ((v%1)+1)%1;}
    function choose(mode){
     if(mode!=='idle'&&!ids.includes(mode))throw Error('Unsupported mode '+mode);
     const next=mode==='idle'?idle:registered[mode];
     if(!Number.isInteger(next))throw Error('V17 gait has not been baked: '+mode);
     const before=snapshot();
     if(before.index===next)return before;
+    const target=model.animations[next],aligned=mode==='idle'?0:matchedPhase(mode,before,target);
     const pose=copyPose(),other=mode==='idle'?null:[...options.options].find(o=>o.textContent.trim()===names[mode]);
     if(mode!=='idle'&&!other)throw Error('Missing native selector for '+mode);
     if(other)other.value=String(next);
@@ -60,8 +94,7 @@
     options.dispatchEvent(new Event('change',{bubbles:true}));
     if(clipIndex!==next||String(options.value)!==String(next))
      throw Error('Native clip selection did not update '+mode);
-    const target=model.animations[next];
-    animTime=target?.duration?before.phase*target.duration:0;
+    animTime=target?.duration?aligned*target.duration:0;
     play=mode!=='idle';
     transition={pose,started:performance.now()};
     playBtn.textContent=play?'⏸ 일시정지':'▶ 재생';
