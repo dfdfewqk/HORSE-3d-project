@@ -42,6 +42,18 @@ try{
   assert.equal(Object.keys(detail.selectedIKScales||{}).length,4);
   assert.ok(detail.maxFullJointStepDeg<9);
  }
+ // Art-direction regression: these settings are intended to make the four
+ // gaits readable in a game. Confirm they are baked into the actual clips.
+ const profiles=evidence.runtime.results;
+ assert.equal(profiles.walk.gameStyle,'relaxed four-beat');
+ assert.ok(profiles.walk.gameStyleProfile.kneeEase>=.10);
+ assert.equal(profiles.cruise.gameStyle,'smooth economical gallop');
+ assert.equal(profiles.fast.gameStyle,'strong leg drive');
+ assert.equal(profiles.sprint.gameStyle,'clear powerful sprint silhouette');
+ assert.ok(profiles.cruise.gameStyleProfile.drive<profiles.fast.gameStyleProfile.drive);
+ assert.ok(profiles.fast.gameStyleProfile.drive<profiles.sprint.gameStyleProfile.drive);
+ evidence.gameReadability=Object.fromEntries(Object.entries(profiles).map(([m,d])=>
+  [m,{style:d.gameStyle,profile:d.gameStyleProfile,limb:d.gaitPolish}]));
  evidence.transitions=[];
  for(const [from,to] of [['walk','cruise'],['cruise','fast'],['fast','sprint'],['sprint','walk']]){
   await page.locator('[data-v17-mode="'+from+'"]').click();
@@ -151,6 +163,23 @@ try{
    candidatePenetrationMm:1000*pen,baselineSlipMm:1000*worst(old,'maxTravelCorrectedStanceSlip'),
    candidateSlipMm:1000*slip,baselineSkinStretch:stretch(old),candidateSkinStretch:edge,
    passed:pen<=.005&&slip<=.015&&edge<=1.20};
+ }
+ // Reference: last fully tested V17.1 before this game-style branch.
+ // These are regression deltas only, not physical-quality certification.
+ const reference={walk:{pen:20.54,slip:11.53,skin:1.2412},
+  cruise:{pen:77.10,slip:26.11,skin:1.3822},
+  fast:{pen:88.84,slip:42.40,skin:1.3871},
+  sprint:{pen:117.31,slip:52.63,skin:1.3863}};
+ evidence.gameStyleRegression={};
+ for(const [mode,n] of Object.entries(evidence.numeric)){
+  const prior=reference[mode];
+  const delta={penetrationMm:n.candidatePenetrationMm-prior.pen,
+   slipMm:n.candidateSlipMm-prior.slip,
+   skinStretch:n.candidateSkinStretch-prior.skin};
+  evidence.gameStyleRegression[mode]=delta;
+  assert.ok(delta.penetrationMm<=20,mode+' excessive hoof penetration regression');
+  assert.ok(delta.slipMm<=8,mode+' excessive stance slip regression');
+  assert.ok(delta.skinStretch<=.055,mode+' excessive skin stretch regression');
  }
  await page.screenshot({path:path+'/v171-ui-candidate.png'});
  evidence.status=Object.values(evidence.numeric).every(x=>x.passed)?
