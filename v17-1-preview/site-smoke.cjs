@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 const {chromium}=require('playwright'),assert=require('node:assert/strict');
-const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-1-preview/';
+const url=process.env.SITE_URL||'https://dfdfewqk.github.io/HORSE-3d-project/game-motion-preview/v17-1-preview/';
 (async()=>{
  const browser=await chromium.launch({headless:true,args:['--enable-webgl','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader']});
  try{
@@ -33,6 +33,9 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-1-preview/';
       visualPolicy:v.visualPolicy,
       reachScale:v.gaitPolish?.reach,
       recoveryFlex:v.gaitPolish?.hind,
+      gameStyle:v.gameStyle,
+      kneeEase:v.gameStyleProfile?.kneeEase,
+      drive:v.gameStyleProfile?.drive,
     }])),
     oldControls:!!document.getElementById('chooseV169')||!!document.getElementById('compare'),
     oldPanels:!!document.getElementById('walkFitButton')||!!document.getElementById('walk169Audit'),
@@ -51,15 +54,22 @@ const url='https://dfdfewqk.github.io/HORSE-3d-project/v17-1-preview/';
     assert.ok(stats.maxFullJointStepDeg<=9,'Final joint velocity too large: '+mode);
     assert.ok(stats.maxCycleSeamDeg<=9,'Whole-gait seam discontinuity: '+mode);
   }
-  for(const [mode,reach] of Object.entries({cruise:.89,fast:.86,sprint:.84})){
+  assert.equal(info.stability.walk.gameStyle,'relaxed four-beat');
+  assert.ok(info.stability.walk.kneeEase>=.1);
+  for(const [mode,reach] of Object.entries({cruise:.91,fast:.86,sprint:.82})){
     const stats=info.stability?.[mode];
-    assert.ok(stats.visualPolicy?.includes('game-ready'),
-     'The public website does not contain latest game polish: '+mode);
+    assert.ok(stats.visualPolicy?.includes('phase-synchronized'),
+     'Public website lacks support-driven gait polish: '+mode);
     assert.ok(Math.abs(stats.reachScale-reach)<1e-6,
      'Public website motion reach settings are stale: '+mode);
     assert.ok(stats.recoveryFlex>3,
      'Public website mid-swing hindleg recovery patch missing: '+mode);
   }
+  assert.equal(info.stability.cruise.gameStyle,'smooth economical gallop');
+  assert.equal(info.stability.fast.gameStyle,'strong leg drive');
+  assert.equal(info.stability.sprint.gameStyle,'clear powerful sprint silhouette');
+  assert.ok(info.stability.cruise.drive<info.stability.fast.drive);
+  assert.ok(info.stability.fast.drive<info.stability.sprint.drive);
   assert.equal(info.oldControls,false);assert.equal(info.oldPanels,false);
   assert.doesNotMatch(info.legacyLabels,/V16\./);
   await page.waitForFunction(()=>document.getElementById('status')?.dataset.mode==='v171',null,{timeout:30000});
