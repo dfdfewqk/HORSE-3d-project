@@ -1,9 +1,11 @@
-/* HORSE RANCH V17.1 — CYCLE-WIDE CONTINUOUS hoof IK candidate.
- * Four gaits, periodic low-frequency joint correction; source GLB and all
- * existing animation channels are preserved. Experimental, NOT approved.
- * No independent foot joint exists in the real 19-joint skeleton.
+/* HORSE RANCH V17.1 — contact-constrained 19-bone animation.
+ * Preserves the model buffers. Cached clips are fingerprint-checked.
+ * Skin stretch remains a separate, mandatory acceptance criterion.
  */
 (function(){'use strict';
+const scriptURL=typeof document!=='undefined'?document.currentScript?.src:null;
+const bakedData=scriptURL?fetch(new URL('contact-clips.json',scriptURL)).then(r=>r.ok?r.json():null).catch(()=>null):Promise.resolve(null);
+
 const N=160,PI=Math.PI,TAU=2*PI,RAD=PI/180,
  FEET=['HindR','ForeR','HindL','ForeL'],MODES=['walk','cruise','fast','sprint'],
  clamp=(v,a,b)=>Math.min(b,Math.max(a,v)),frac=x=>((x%1)+1)%1,
@@ -107,301 +109,112 @@ function scanner(g,builder){
    }
    skinStretch=upper;
   }
-  return {y:Math.min(...contacts.map(x=>x[1])),z:contacts[0][2],
+  const sole=info.sole.map(i=>vertex(i,m));
+  return {x:contacts[0][0],y:Math.min(...sole.map(x=>x[1])),z:contacts[0][2],
    toe:contacts[1][1],heel:contacts[2][1],skinStretch};
  }
- return {original,chains,foot,torso:doc.findIndex(n=>n.name==='Torso'),
+ let signature=2166136261;
+ for(const array of [pos,ji,weight,skin.ibms]){const canonical=Float32Array.from(array,v=>v===0?0:v);for(const byte of new Uint8Array(canonical.buffer)){signature^=byte;signature=Math.imul(signature,16777619)>>>0;}}
+ return {signature:signature.toString(16),original,chains,foot,matrices,vertex,localEdges,torso:doc.findIndex(n=>n.name==='Torso'),
   neck:doc.findIndex(n=>n.name==='Neck'),head:doc.findIndex(n=>n.name==='Head'),floor:original.floor};
 }
-function gaitTarget(i,c,leg,g){
- const phase=frac(i/N-c.touch[leg]),type=leg.startsWith('Fore')?'fore':'hind',
-  duty=c.stance[type],stance=phase<duty,
-  u=stance?phase/duty:(phase-duty)/(1-duty);
- // Linear stance progression with softened first/last 8%; constant
- // treadmilled world velocity through the central support interval.
- const a=.08,p=u<a?u*u/(2*a*(1-a)):
-  u>1-a?1-(1-u)*(1-u)/(2*a*(1-a)):(u-a/2)/(1-a);
- const advance=stance?.5-p:ease(u)-.5;
- const rise=stance?0:.080*Math.pow(Math.sin(PI*u),2);
- return {stance,u,phase,z:g.original.feet[leg].restZ+c.stride[type]*advance,
-  y:g.floor+.003+rise,weight:stance?ease(u/.15)*ease((1-u)/.15):0};
-}
-function circular(values,radius=9,sigma=3.8){
- const k=Array.from({length:radius*2+1},(_,i)=>Math.exp(-.5*((i-radius)/sigma)**2)),
- total=k.reduce((a,b)=>a+b,0);
- return values.map((_,i)=>k.reduce((s,w,j)=>s+w*values[(i+j-radius+N)%N],0)/total);
-}
-function basis(i){const t=TAU*i/N;return [1,Math.sin(t),Math.cos(t),Math.sin(2*t),Math.cos(2*t)];}
-const harmonic=Array.from({length:N},(_,i)=>basis(i));
-function phaseCorrection(coeff,frame){
- return coeff.reduce((a,x,j)=>a+x*harmonic[frame][j],0);
-}
-function measureDerivative(frame,ids){
- let worstStep=0,worstAccel=0,worstSeam=0;
- for(const id of ids){
-  const rot=frame.map(p=>p[id].q);
-  const dist=(a,b)=>2*Math.acos(clamp(Math.abs(a.reduce((v,x,k)=>v+x*b[k],0)),-1,1));
-  for(let i=0;i<N;i++){
-   const next=(i+1)%N,prev=(i+N-1)%N;
-   const step=dist(rot[i],rot[next])/RAD;
-   worstStep=Math.max(worstStep,step);
-   worstSeam=i===N-1?Math.max(worstSeam,step):worstSeam;
-   worstAccel=Math.max(worstAccel,Math.abs(dist(rot[prev],rot[i])-dist(rot[i],rot[next]))/RAD);
+const policy=window.__horseV171Contact;
+const limits={fore:[[-1.2,.85],[0,1.9],[-1.1,1.1]],hind:[[-1,.70],[-.25,1.25],[-1.20,.75],[-1,1]]};
+const angle=q=>2*Math.atan2(q[0],q[3]);
+function linear(A,b){const n=b.length,m=A.map((r,i)=>[...r,b[i]]);for(let k=0;k<n;k++){let p=k;for(let i=k+1;i<n;i++)if(Math.abs(m[i][k])>Math.abs(m[p][k]))p=i;[m[k],m[p]]=[m[p],m[k]];if(Math.abs(m[k][k])<1e-12)return b.map(()=>0);const d=m[k][k];for(let j=k;j<=n;j++)m[k][j]/=d;for(let i=0;i<n;i++)if(i!==k){const f=m[i][k];for(let j=k;j<=n;j++)m[i][j]-=f*m[k][j];}}return m.map(r=>r[n]);}
+/* Real skinned sole residual; no bone translation, scaling or mesh edits. */
+function solveFoot(p,leg,t,geom,iterations=24){
+ const ids=geom.chains[leg],bounds=limits[leg.startsWith('Fore')?'fore':'hind'].map((b,k)=>t.previousAngles?[Math.max(b[0],t.previousAngles[k]-t.maxStep),Math.min(b[1],t.previousAngles[k]+t.maxStep)]:b);
+ const preferred=t.preferredAngles||ids.map(id=>angle(p[id].q));let q=ids.map((id,k)=>clamp(angle(p[id].q),...bounds[k]));
+ // A straight carpus is a singular IK seed. Start on the flexion branch
+ // when the foot must rise, instead of extending the knee backwards.
+ if(leg.startsWith('Fore')&&q[1]<.3&&t.y>geom.foot(p,leg).y+.005){const bend=.4-q[1];q[1]=.4;q[0]-=bend*.4;q[2]-=bend*.6;}
+ if(t.previousAngles)q=q.map((v,k)=>clamp(v,...bounds[k]));
+ const apply=a=>ids.forEach((id,k)=>p[id].q=xdelta(a[k]));
+ const residual=()=>{const f=geom.foot(p,leg);return [t.y-f.y,t.z-f.z,(t.orientationWeight??0.025)*(preferred[ids.length-1]-angle(p[ids[ids.length-1]].q))];};
+ apply(q);let r=residual(),cost=r.reduce((a,v)=>a+v*v,0);
+ for(let iteration=0;iteration<iterations;iteration++){
+  if(Math.hypot(r[0],r[1])<.0005&&Math.abs(r[2])<.001)break;
+  const J=ids.map((id,k)=>{const a=q.slice();a[k]+=.0005;apply(a);const d=residual();return d.map((x,j)=>(r[j]-x)/.0005);});apply(q);
+  const damping=.00004,A=ids.map((_,i)=>ids.map((_,j)=>J[i].reduce((v,x,k)=>v+x*J[j][k],0)+(i===j?damping:0))),b=ids.map((_,i)=>J[i].reduce((v,x,k)=>v+x*r[k],0));
+  let delta=linear(A,b);
+  for(let k=0;k<ids.length;k++)if((q[k]<=bounds[k][0]+1e-6&&delta[k]<0)||(q[k]>=bounds[k][1]-1e-6&&delta[k]>0)){for(let j=0;j<ids.length;j++){A[k][j]=0;A[j][k]=0;}A[k][k]=1;b[k]=0;}
+  delta=linear(A,b);const trust=Math.min(1,.15/Math.max(...delta.map(Math.abs)));let improved=false;
+  for(const scale of [1,.5,.2,.05,.01]){const candidate=q.map((v,k)=>clamp(v+delta[k]*trust*scale,...bounds[k]));apply(candidate);const next=residual(),c=next.reduce((a,v)=>a+v*v,0);
+   if(c<cost){q=candidate;r=next;cost=c;improved=true;break;}
+  }
+  if(!improved){
+   for(const step of [.03,.008,.002])for(let k=0;k<ids.length;k++)for(const dir of [-1,1]){const a=q.slice();a[k]=clamp(a[k]+step*dir,...bounds[k]);apply(a);const next=residual(),c=next.reduce((v,x)=>v+x*x,0);if(c<cost){q=a;r=next;cost=c;improved=true;}}
+   if(!improved){apply(q);break;}
   }
  }
- return {maxFullJointStepDeg:worstStep,maxStepMagnitudeDeltaDeg:worstAccel,maxCycleSeamDeg:worstSeam};
+ apply(q);return Math.hypot(r[0],r[1]);
 }
-/* Stage 1 — Footfall timeline. The same phase data drives hoof,
- * leg coordination and body motion, with no extra angles patched afterward.
- */
-function phaseTimeline(mode,config,geom){
- const states=Object.fromEntries(FEET.map(leg=>[leg,Array.from({length:N},(_,i)=>{
-  const t=gaitTarget(i,config,leg,geom);
-  const kind=leg.startsWith('Fore')?'fore':'hind';
-  // Breakover cannot be animated independently in this 19-joint GLB;
-  // represent its timing in the target, never claim a separate hoof pivot.
-  const breakover=t.stance?ease((t.u-.78)/.22):0;
-  return {...t,leg,kind,breakover,flight:!t.stance};
- })]));
- const support=Array.from({length:N},(_,i)=>FEET.filter(leg=>states[leg][i].stance));
- return {mode,config,states,support,phases:N,realHoofJoint:false};
-}
-/* Stage 2 — Hoof trajectories. Stance uses almost-linear backward
- * treadmill-relative movement; swing has a raised forward-return arc.
- * These positions are desired constraints, not fabricated contacts.
- */
-function hoofTrajectory(timeline,geom){
- const lift={walk:.055,cruise:.083,fast:.095,sprint:.105}[timeline.mode];
- const targets={};
- for(const leg of FEET){
-  targets[leg]=timeline.states[leg].map(t=>{
-   const departure=t.flight?Math.pow(Math.sin(PI*t.u),2):0;
-   const phase=t.phase,contact=t.stance;
-   return {...t,y:geom.floor+.003+(contact?0:lift*departure),
-    z:t.z,roll:contact?t.breakover:0};
-  });
+function phasePose(g,mode,phase,builder,geom){
+ const c=policy.configs[mode],base=g.animations.find(a=>a.name===builder.configs[mode].name);
+ const p=g.nodes.map(n=>({t:Array.from(n.baseT),q:Array.from(n.baseQ),s:Array.from(n.baseS)}));
+ for(const ch of base.channels){const v=policy.sample(ch.sam,base.duration*phase,ch.path==='rotation'?4:3);p[ch.node][ch.path==='rotation'?'q':ch.path==='translation'?'t':'s']=v;}
+ // Retiming the whole limb keeps the source recovery coordination when duty changes.
+ for(const leg of FEET){const state=policy.state(mode,leg,phase),old=builder.configs[mode],d=old.stance[state.kind],oldPhase=policy.frac(old.touch[leg]+(state.stance?state.u*d:d+state.u*(1-d)));
+  for(const id of geom.chains[leg]){const ch=base.channels.find(x=>x.node===id&&x.path==='rotation');p[id].q=policy.sample(ch.sam,oldPhase*base.duration,4);}
  }
- return targets;
+ // Replace accumulated legacy root offsets with a single support-based body prior.
+ const weights=FEET.map(leg=>{const st=policy.state(mode,leg,phase);return st.stance?Math.sin(Math.PI*st.u)**2:0;}),front=weights[1]+weights[3],hind=weights[0]+weights[2];
+ p[geom.torso].t=Array.from(g.nodes[geom.torso].baseT);
+ p[geom.torso].t[1]-=mode==='walk'?.025:.045;
+ p[geom.torso].t[1]+=(mode==='walk'?.006:.018)*(1-Math.min(1,(front+hind)/1.5));
+ p[geom.torso].q=xdelta((mode==='walk'?.008:.024)*(front-hind));
+ return p;
 }
-function cloneFrames(frames){
- return frames.map(p=>p.map(x=>({t:x.t.slice(),q:x.q.slice(),s:x.s.slice()})));
-}
-/* Stage 3 — Whole-limb coordinated motion. This is a low-dimensional,
- * cycle-wide constrained IK approximation for the existing 19 skinned bones,
- * not physical inverse dynamics and not per-frame independent IK.
- */
-function limbPrior(g,mode,frames,timeline,geom){
- const game={walk:{reach:1,fore:0,hind:0,hock:0,bob:.0015,pitch:.11,neck:.10,tail:.16},
-  cruise:{reach:.89,fore:2.7,hind:3.5,hock:-2.9,bob:.006,pitch:.46,neck:.25,tail:.42},
-  fast:{reach:.86,fore:3.1,hind:4.1,hock:-3.3,bob:.007,pitch:.54,neck:.31,tail:.50},
-  sprint:{reach:.84,fore:3.5,hind:4.7,hock:-3.6,bob:.008,pitch:.62,neck:.36,tail:.58}}[mode];
- for(const leg of FEET){
-  const ids=geom.chains[leg],fore=leg.startsWith('Fore'),root=ids[0];
-  const angle=q=>2*Math.atan2(q[0],q[3]);
-  const mean=frames.reduce((sum,p)=>sum+angle(p[root].q),0)/N;
-  for(let i=0;i<N;i++){
-   const p=frames[i],t=timeline.states[leg][i],
-    swing=t.flight?Math.sin(PI*t.u)**2:0,
-    cur=angle(p[root].q);
-   p[root].q=qmultiply(p[root].q,xdelta(clamp((mean-cur)*(1-game.reach),-4*RAD,4*RAD)));
-   p[ids[1]].q=qmultiply(p[ids[1]].q,xdelta((fore?game.fore:game.hind)*RAD*swing));
-   if(!fore)p[ids[2]].q=qmultiply(p[ids[2]].q,xdelta(game.hock*RAD*swing));
+function targetsFor(mode,phase,geom){return Object.fromEntries(FEET.map(l=>[l,policy.target(mode,l,phase,geom.original.feet[l].restZ,geom.floor)]));}
+function solvePose(p,targets,geom,outer=3){
+ let residual=0;
+ for(let pass=0;pass<outer;pass++){
+  for(const leg of FEET)solveFoot(p,leg,targets[leg],geom);
+  if(pass===outer-1)break;
+  const stance=FEET.filter(l=>targets[l].stance);
+  if(stance.length){const error=stance.reduce((sum,l)=>sum+targets[l].y-geom.foot(p,l).y,0)/stance.length;
+   // Signed, bounded body correction; always followed by another limb solve.
+   p[geom.torso].t[1]+=clamp(error*.65,-.012,.012);
   }
  }
- return game;
+ for(const leg of FEET){const f=geom.foot(p,leg),t=targets[leg];residual=Math.max(residual,Math.hypot(f.y-t.y,f.z-t.z));}
+ return residual;
 }
-/* Stage 4 — Body/poll response is synchronized to the same support map.
- * Airborne feet never drive root lift and support impulses are smoothed.
- */
-function bodyFromSupport(g,mode,frames,timeline,geom,game){
- const lift=Array.from({length:N},(_,i)=>{
-  const contacting=timeline.support[i];
-  if(!contacting.length)return 0;
-  const measured=Math.min(...contacting.map(leg=>geom.foot(frames[i],leg).y));
-  return clamp(geom.floor+.003-measured,0,.037);
- });
- const root=circular(lift,10,4.3).map(x=>clamp(.72*x,0,.029));
- const tail=g.doc.nodes.findIndex(n=>n.name==='Tail');
- const foreWeights=timeline.states.ForeL.map((_,i)=>
-  timeline.states.ForeL[i].weight+timeline.states.ForeR[i].weight);
- const hindWeights=timeline.states.HindL.map((_,i)=>
-  timeline.states.HindL[i].weight+timeline.states.HindR[i].weight);
- const balance=circular(foreWeights.map((w,i)=>(w-hindWeights[i])*.5),8,3.5);
- for(let i=0;i<N;i++){
-  const p=frames[i],theta=TAU*i/N;
-  p[geom.torso].t[1]+=root[i]+game.bob*(.5+.5*Math.sin(theta-.75));
-  const pitch=game.pitch*(balance[i]+.20*Math.sin(theta-.9))*RAD;
-  p[geom.torso].q=qmultiply(p[geom.torso].q,xdelta(pitch));
-  p[geom.neck].q=qmultiply(p[geom.neck].q,xdelta(-game.neck*RAD*balance[i]));
-  p[geom.head].q=qmultiply(p[geom.head].q,
-   xdelta(game.neck*.40*RAD*Math.sin(theta-1.05)));
-  if(tail>=0)p[tail].q=qmultiply(p[tail].q,
-   xdelta(game.tail*RAD*Math.sin(theta-1.48)));
- }
- return {maxTorsoLiftMm:Math.max(...root)*1000,supportDriven:true,
-  visualPolicy:'phase-synchronized body and coordinated leg recovery'};
-}
-/* Optimization stage: coefficients are shared across the entire gait
- * cycle, enforcing periodicity. Candidate amplitude is selected against
- * measured hoof/skin errors; do not alter geometry or old source clips.
- */
-function solveLimbs(mode,frames,prior,timeline,targets,geom){
- const training=Array.from({length:28},(_,j)=>Math.floor(j*N/28)),
-  amp=[.075,.063,.063,.045,.045],optimizer={attempts:0,improvements:0,selectedScales:{}};
- const scales=mode==='walk'||mode==='sprint'?[0,.15,.25,.4,.6]:mode==='fast'?[0,.15,.25,.4,.6,.8]:[0,.15,.25,.4,.6,.8,1];
- for(const leg of FEET){
-  const ids=geom.chains[leg],coeff=ids.map(()=>new Float64Array(5)),
-   poses=training.map(i=>frames[i]),base=training.map(i=>prior[i]),
-   desired=training.map(i=>targets[leg][i]);
-  const baseline=Array.from({length:training.length},(_,j)=>geom.foot(base[j],leg,true));
-  const baselineSkin=Math.max(...baseline.map(x=>x.skinStretch));
-  // Whole-cycle cost: actual contact, swing clearance and treadmill slip;
-  // skin regularization discourages damaging existing rig weights.
-  function apply(scale){
-   for(let j=0;j<training.length;j++){
-    const f=training[j],p=poses[j];
-    ids.forEach((id,k)=>p[id].q=qmultiply(base[j][id].q,
-     xdelta(scale*phaseCorrection(coeff[k],f))));
-   }
-  }
-  function evalCost(full=false){
-   let error=0,maxSkin=0,maxPen=0;
-   let prev=null;
-   for(let j=0;j<training.length;j++){
-    const t=desired[j],v=geom.foot(poses[j],leg,full||j%4===0),
-     py=v.y-t.y,pz=v.z-t.z,pen=Math.max(0,geom.floor+.001-v.y);
-    error+=(t.stance?32:10)*py*py+(t.stance?3.4:1.1)*pz*pz+180*pen*pen;
-    if(t.stance){
-     error+=1.25*Math.pow(v.toe-v.heel,2);
-     if(prev&&prev.stance && training[j]-prev.frame<=7){
-      const actualStep=v.z-prev.z;
-      const requiredStep=t.z-prev.targetZ;
-      error+=(mode==='fast'?90:mode==='sprint'?55:28)*(actualStep-requiredStep)**2;
-     }
-    }
-    prev={stance:t.stance,frame:training[j],z:v.z,targetZ:t.z};
-    maxPen=Math.max(maxPen,pen);
-    maxSkin=Math.max(maxSkin,v.skinStretch);
-    if(full||j%4===0)error+=48*Math.max(0,v.skinStretch-1.19)**2;
-   }
-   for(const a of coeff)for(let k=0;k<a.length;k++)
-    error+=(k===0?.025:k<=2?.03:.050)*a[k]*a[k];
-   return {cost:error/training.length,maxSkin,maxPen};
-  }
-  apply(0);let best=evalCost().cost;
-  for(const step of [.040,.019,.009]){
-   for(let pass=0;pass<2;pass++)for(let k=0;k<ids.length;k++)for(let h=0;h<5;h++){
-    const original=coeff[k][h];let winner=original,low=best;
-    for(const dir of [-1,1]){
-     const v=clamp(original+dir*step,-amp[h],amp[h]);
-     if(Math.abs(v-original)<1e-8)continue;
-     coeff[k][h]=v;apply(1);
-     const cost=evalCost().cost;optimizer.attempts++;
-     if(cost+1e-10<low){low=cost;winner=v;}
-    }
-    coeff[k][h]=winner;apply(1);
-    if(low<best){best=low;optimizer.improvements++;}
-   }
-  }
-  // Select a scale based on actual protected GLB geometry rather than
-  // blindly applying a fixed 25% of every IK solution.
-  let chosen={scale:0,cost:Infinity};
-  for(const scale of scales){
-   apply(scale);
-   const measured=evalCost(true);
-   const excessiveSkin=measured.maxSkin>baselineSkin+.004;
-   // Geometry-based reject; still permits fixing a bad baseline cautiously.
-   if(excessiveSkin)continue;
-   const regularizer=Math.abs(scale)*.000025;
-   if(measured.cost+regularizer<chosen.cost)
-    chosen={scale,cost:measured.cost+regularizer,
-     maxSkin:measured.maxSkin,maxPen:measured.maxPen};
-  }
-  optimizer.selectedScales[leg]={...chosen,baselineSkin};
-  for(let i=0;i<N;i++)ids.forEach((id,j)=>
-   frames[i][id].q=qmultiply(prior[i][id].q,
-    xdelta(chosen.scale*phaseCorrection(coeff[j],i))));
- }
- return optimizer;
-}
-function smoothCycle(frames,geom){
- const jointIds=[...new Set(Object.values(geom.chains).flat())],
-  ids=[...jointIds,geom.torso,geom.neck,geom.head];
- for(const id of ids){
-  const q=frames.map(p=>p[id].q.slice());
-  for(let i=0;i<N;i++){
-   const prev=q[(i+N-1)%N],now=q[i],next=q[(i+1)%N];
-   const p=now.reduce((v,x,k)=>v+x*prev[k],0)<0?-1:1,
-    n=now.reduce((v,x,k)=>v+x*next[k],0)<0?-1:1;
-   const a=now.map((x,k)=>.86*x+.07*(p*prev[k]+n*next[k])),
-    norm=Math.hypot(...a);
-   frames[i][id].q=a.map(x=>x/norm);
-  }
- }
- return measureDerivative(frames,jointIds);
-}
-/* Stages execute in the requested order:
- * phase -> hoof trajectories -> coordinated limb IK -> body response -> verify.
- * Body first uses a support-based initial prediction, with IK then fitted
- * against that predicted torso; final pose stays one coherent cyclic clip.
- */
 function bake(g,mode,builder,geom){
- const config=builder.configs[mode],src=g.animations.find(c=>c.name===config.name);
- if(!src||src.channels.length!==19)throw Error('Protected base clip missing: '+mode);
- const source=Array.from({length:N},(_,i)=>copyPose(g,src,i,builder));
- const timeline=phaseTimeline(mode,config,geom);
- const targets=hoofTrajectory(timeline,geom);
- const frames=cloneFrames(source);
- const game=limbPrior(g,mode,frames,timeline,geom);
- // Motion is predicted from phase support before IK because the skeletal
- // hierarchy needs a torso position for evaluating each hoof target.
- const body=bodyFromSupport(g,mode,frames,timeline,geom,game);
- const prior=cloneFrames(frames);
- const fit=solveLimbs(mode,frames,prior,timeline,targets,geom);
- const smooth=smoothCycle(frames,geom);
- const sampleTimes=Float32Array.from({length:N},(_,i)=>src.duration*i/N);
- const channels=src.channels.map(ch=>{
-  const dim=ch.path==='rotation'?4:3,values=new Float32Array(N*dim);
-  for(let i=0;i<N;i++){
-   const p=frames[i][ch.node],x=ch.path==='rotation'?p.q:
-    ch.path==='translation'?p.t:p.s;
-   values.set(x,i*dim);
+ const c=policy.configs[mode],base=g.animations.find(a=>a.name===builder.configs[mode].name),frames=[],allTargets=[];let worst=0;
+ let previous=null;
+ // Warm-start around the closed cycle so IK keeps the same bend solution.
+ for(let lap=0;lap<2;lap++)for(let i=0;i<N;i++){
+  const p=phasePose(g,mode,i/N,builder,geom),targets=targetsFor(mode,i/N,geom);
+  for(const leg of FEET)targets[leg].preferredAngles=geom.chains[leg].map(id=>angle(p[id].q));allTargets[i]=targets;
+  if(previous)for(const leg of FEET)for(const id of geom.chains[leg]){const a=angle(previous[id].q),b=angle(p[id].q);p[id].q=xdelta(.95*a+.05*b);}
+  solvePose(p,allTargets[i],geom);frames[i]=p;previous=p;
+ }
+ // Smooth the null-space choice, then reproject contact constraints, never the reverse.
+ for(let pass=0;pass<3;pass++){
+  const values=frames.map(p=>p.map(n=>angle(n.q)));
+  for(let i=0;i<N;i++){for(const leg of FEET)for(const id of geom.chains[leg])frames[i][id].q=xdelta(.25*values[(i+N-1)%N][id]+.5*values[i][id]+.25*values[(i+1)%N][id]);
+   solvePose(frames[i],allTargets[i],geom,1);
   }
-  return {node:ch.node,path:ch.path,sam:{times:sampleTimes,data:values,interpolation:'LINEAR'}};
- });
- const clip={name:'V17_1_'+mode.toUpperCase()+'_CYCLE_IK_EXPERIMENT',
-  duration:src.duration,channels};
- const gameMotion={
-  reach:game.reach,hind:game.hind,fore:game.fore,hock:game.hock,
-  bob:game.bob,pitch:game.pitch,neck:game.neck,tail:game.tail};
- return {clip,stats:{mode,source:src.name,period:src.duration,
-  method:'phase-foot-trajectory-coordinated-IK-body-validation',
-  phasePhases:N,contactFootIds:FEET,ground:geom.floor,
-  targetPathType:'stance-lock treadmill proxy, continuous lifted swing',
-  optimizedSteps:fit.improvements,trialCount:fit.attempts,
-  selectedIKScales:fit.selectedScales,
-  maxTorsoLiftMm:body.maxTorsoLiftMm,...smooth,
-  visualPolicy:body.visualPolicy,gaitPolish:gameMotion,
-  originalModelPreserved:true,originalSkinPreserved:true,
-  referenceJointCount:19,rigExtended:false,approved:false}};
+ }
+ for(let i=0;i<N;i++)for(const leg of FEET){const f=geom.foot(frames[i],leg),t=targetsFor(mode,i/N,geom)[leg];worst=Math.max(worst,Math.hypot(f.y-t.y,f.z-t.z));}
+ // A closing key eliminates the previous last-sample hold at duration.
+ frames.push(frames[0]);const times=Float32Array.from({length:N+1},(_,i)=>c.period*i/N);
+ const channels=base.channels.map(ch=>{const dim=ch.path==='rotation'?4:3,key=ch.path==='rotation'?'q':ch.path==='translation'?'t':'s',data=new Float32Array((N+1)*dim);for(let i=0;i<=N;i++)data.set(frames[i][ch.node][key],i*dim);return {node:ch.node,path:ch.path,sam:{times,data,interpolation:'LINEAR'}};});
+ return {clip:{name:'V17_1_'+mode.toUpperCase()+'_CONTACT_IK',duration:c.period,channels},stats:{mode,method:'world-anchor-skinned-contact-IK',period:c.period,phasePhases:N,contactFootIds:FEET,referenceJointCount:19,originalSkinPreserved:true,rigExtended:false,aerialIntervals:policy.aerial(mode),maxTargetResidualMm:worst*1000,approved:false}};
 }
 let count=0;
-const wait=setInterval(()=>{
- if(!window.__horseV167?.ready||!window.__horseV167Builder||
-  !window.__horseV171Bridge?.ready||!window.__horseV16Targets?.collect||!window.__viewerReady){
-  if(++count>1000){clearInterval(wait);window.__horseV171Error='Original GLB/runtime missing';}return;
- }
+const wait=setInterval(async()=>{
+ if(!window.__horseV167?.ready||!window.__horseV171Bridge?.ready||!window.__viewerReady){if(++count>1000){clearInterval(wait);window.__horseV171Error='Runtime unavailable';}return;}
  clearInterval(wait);
- try{
-  const g=object3d,builder=window.__horseV167Builder,geometry=scanner(g,builder),results={};
-  for(const mode of MODES){
-   const result=bake(g,mode,builder,geometry),index=g.animations.length;
-   g.animations.push(result.clip);window.__horseV171Bridge.register(mode,index);
-   results[mode]={index,...result.stats};
-  }
-  window.__horseV171={ready:true,version:'V17.1',results,originalGlbPreserved:true,
-   originalSkinPreserved:true,rigExtended:false,experimental:true};
-  console.log('V17.1 cycle-wide IK experiments',results);
- }catch(e){window.__horseV171Error=String(e?.stack||e);console.error(window.__horseV171Error);}
+ try{const g=object3d,builder=window.__horseV167Builder,geom=scanner(g,builder),results={};
+  const cache=await bakedData;
+  if(cache&&(cache.revision!==1||cache.signature!==geom.signature||JSON.stringify(cache.configs)!==JSON.stringify(policy.configs)))throw Error('Baked contact data mismatch: model '+geom.signature+' expected '+cache.signature+'; policy '+(JSON.stringify(cache.configs)===JSON.stringify(policy.configs)));
+  for(const mode of MODES){const r=cache?cache.modes[mode]:bake(g,mode,builder,geom),index=g.animations.length;
+   if(!r?.clip||r.clip.channels.length!==19)throw Error('Missing contact clip '+mode);
+   for(const ch of r.clip.channels){ch.sam.times=Float32Array.from(ch.sam.times);ch.sam.data=Float32Array.from(ch.sam.data);}g.animations.push(r.clip);window.__horseV171Bridge.register(mode,index);results[mode]={index,...r.stats};}
+  window.__horseV171={ready:true,version:'V17.1',results,geometry:geom,rebuild:()=>({revision:1,signature:geom.signature,configs:policy.configs,modes:Object.fromEntries(MODES.map(m=>[m,bake(g,m,builder,geom)]))}),targetsFor:(m,p)=>targetsFor(m,p,geom),solvePose:(p,t,n=2)=>solvePose(p,t,geom,n),solveFoot:(p,l,t,n)=>solveFoot(p,l,t,geom,n),originalGlbPreserved:true,originalSkinPreserved:true,rigExtended:false,experimental:true};
+ }catch(e){window.__horseV171Error=String(e.stack||e);console.error(e);}
 },100);
 })();

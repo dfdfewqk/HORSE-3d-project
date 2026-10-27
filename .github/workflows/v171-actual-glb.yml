@@ -1,7 +1,9 @@
 name: V17.1 actual GLB 4-gait QA
 on:
   push:
-    branches: [v17-1-anatomical-gait-rebuild]
+    branches: [v17-1-anatomical-gait-rebuild, work/v171-contact-ik-20261026]
+  pull_request:
+    paths: ['v17-1-preview/**', '.github/workflows/v171-actual-glb.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,10 +17,8 @@ jobs:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium
-      - name: Start GLB viewer
-        run: python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/v170server.log 2>&1 &
-      - name: Execute 1280 frame real-GLB and four V17 buttons
-        run: node v17-1-preview/automated-qa.cjs
+      - name: Execute contact, continuity and four-mode browser regressions
+        run: RUN_GEOMETRY_AUDIT=1 STRICT_GEOMETRY=1 node v17-1-preview/automated-qa.cjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

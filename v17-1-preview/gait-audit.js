@@ -1,9 +1,9 @@
 /* HORSE RANCH V17.1 actual GLB CPU audit: V16.2/V16.7 real-GLB geometry, read-only */
 (function(){'use strict';
-const N=160,names={walkOld:'Walk_V16_7_FOOTFALL',walk:'V17_1_WALK_CYCLE_IK_EXPERIMENT',
- cruiseOld:'Gallop_V16_7_CRUISE',cruise:'V17_1_CRUISE_CYCLE_IK_EXPERIMENT',
- fastOld:'Gallop_V16_7_FAST',fast:'V17_1_FAST_CYCLE_IK_EXPERIMENT',
- sprintOld:'Gallop_V16_7_SPRINT',sprint:'V17_1_SPRINT_CYCLE_IK_EXPERIMENT'};
+const N=640,names={walkOld:'Walk_V16_7_FOOTFALL',walk:'V17_1_WALK_CONTACT_IK',
+ cruiseOld:'Gallop_V16_7_CRUISE',cruise:'V17_1_CRUISE_CONTACT_IK',
+ fastOld:'Gallop_V16_7_FAST',fast:'V17_1_FAST_CONTACT_IK',
+ sprintOld:'Gallop_V16_7_SPRINT',sprint:'V17_1_SPRINT_CONTACT_IK'};
 const state={status:'idle',progress:0,result:null,error:null,run};
 window.__horseV171QA=state;
 function ok(x,label){if(!Number.isFinite(x))throw Error('Nonfinite '+label);return x;}
@@ -13,11 +13,7 @@ function trs(t,q,s){const [x,y,z,w]=q,[sx,sy,sz]=s;
  return Float64Array.from([(1-yy-zz)*sx,(xy+wz)*sx,(xz-wy)*sx,0,
   (xy-wz)*sy,(1-xx-zz)*sy,(yz+wx)*sy,0,
   (xz+wy)*sz,(yz-wx)*sz,(1-xx-yy)*sz,0,t[0],t[1],t[2],1]);}
-function sample(s,t,n){const ts=s.times,d=s.data;if(!ts.length)throw Error('Empty sampler');
- let lo=0,hi=ts.length-1;while(lo<hi){const m=(lo+hi)>>1;if(ts[m]<t)lo=m+1;else hi=m;}
- const b=lo,a=ts[b]<t?b:Math.max(0,b-1),v=ts[a]===ts[b]?0:Math.max(0,Math.min(1,(t-ts[a])/(ts[b]-ts[a])));
- const o=Array.from({length:n},(_,j)=>d[a*n+j]*(1-v)+d[b*n+j]*v);
- if(n===4){const l=Math.hypot(...o);if(l<1e-8)throw Error('Zero quat');return o.map(x=>x/l);}return o;}
+function sample(s,t,n){return window.__horseV171Contact.sample(s,t,n);}
 function prepare(){
  const g=object3d,info=window.__horseV167;if(!info?.ready||g.skins?.[0]?.joints?.length!==19)
   throw Error('V16.7 not ready');
@@ -33,17 +29,17 @@ function prepare(){
   let fore=0,hind=0;for(let k=0;k<4;k++){
    const n=limb[j[i*4+k]],v=w[i*4+k];if(n.startsWith('Fore'))fore+=v;if(n.startsWith('Hind'))hind+=v;
   }
-  regions.fore[i]=fore>.5&&pos[3*i+1]<.95&&pos[3*i+2]>-2.8?1:0;
-  regions.hind[i]=hind>.5&&pos[3*i+1]<.95&&pos[3*i+2]<-3.1?1:0;
+  regions.fore[i]=fore>.08?1:0;
+  regions.hind[i]=hind>.08?1:0;
  }
  const edges={fore:[],hind:[]},seen=new Set(),count=pos.length/3;
  for(let k=0;k<indices.length;k+=3)for(const [v1,v2] of [[indices[k],indices[k+1]],[indices[k+1],indices[k+2]],[indices[k+2],indices[k]]]){
   const u=Math.min(v1,v2),v=Math.max(v1,v2),id=u*count+v;if(seen.has(id))continue;seen.add(id);
   const d=Math.hypot(pos[3*u]-pos[3*v],pos[3*u+1]-pos[3*v+1],pos[3*u+2]-pos[3*v+2]);
-  if(d<.008||d>.12)continue;
-  for(const r of ['fore','hind'])if(regions[r][u]&&regions[r][v])edges[r].push([3*u,3*v,d]);
+  if(d<1e-7)continue;
+  for(const r of ['fore','hind'])if(regions[r][u]||regions[r][v])edges[r].push([3*u,3*v,d]);
  }
- if(edges.fore.length!==3107||edges.hind.length!==2932)throw Error('Skin cohort count regression');
+ if(!edges.fore.length||!edges.hind.length)throw Error('Missing skin edges');
  const clips=Object.fromEntries(Object.entries(names).map(([k,n])=>[k,g.animations.find(a=>a.name===n)]));
  if(Object.values(clips).some(x=>!x||x.channels.length!==19))throw Error('Walk candidate missing');
  const old=window.__horseV165,scanner=window.__horseV16Targets;
@@ -91,7 +87,7 @@ function run(onProgress){
  const stats={};
  for(const key of Object.keys(names)){
   stats[key]={feet:Object.fromEntries(Object.keys(setup.feet).map(k=>[k,{minY:Infinity,maxY:-Infinity,
-   worstPenetration:0,worstToePenetration:0,worstHeelPenetration:0,maxToeHeelHeightDifference:0,maxStanceVerticalError:0,maxStanceHorizontalDelta:0,maxCorrectedStanceSlip:0,stanceSamples:0,nearGround:0,samples:[]}]))};
+   worstPenetration:0,worstToePenetration:0,worstHeelPenetration:0,maxToeHeelHeightDifference:0,maxStanceVerticalError:0,maxStanceHorizontalDelta:0,maxCorrectedStanceSlip:0,minAnchorZ:Infinity,maxAnchorZ:-Infinity,minAnchorX:Infinity,maxAnchorX:-Infinity,stanceSamples:0,nearGround:0,samples:[]}]))};
   stats[key].edge={fore:new Float64Array(setup.edges.fore.length),hind:new Float64Array(setup.edges.hind.length)};
  }
  let step=0;
@@ -107,13 +103,13 @@ function run(onProgress){
      const f=s.feet[name],verts=[config.contactVertex,config.frontVertex,config.backVertex];
       if(verts.some(x=>!Number.isInteger(x)||x<0||x>=coords.length/3))throw Error('Sole vertex reference invalid: '+name);
      const contactY=coords[config.contactVertex*3+1],toeY=coords[config.frontVertex*3+1],heelY=coords[config.backVertex*3+1];
-      const minY=Math.min(contactY,toeY,heelY);
+      const minY=Math.min(...config.sole.map(v=>coords[v*3+1]));
       f.worstToePenetration=Math.max(f.worstToePenetration,Math.max(0,setup.ground-toeY));
       f.worstHeelPenetration=Math.max(f.worstHeelPenetration,Math.max(0,setup.ground-heelY));
       f.maxToeHeelHeightDifference=Math.max(f.maxToeHeelHeightDifference,Math.abs(toeY-heelY));
      const z=coords[config.contactVertex*3+2];
      const modeId=key.endsWith('Old')?key.slice(0,-3):key,
-      setupMode=window.__horseV167Builder.configs[modeId],
+      setupMode=(key.endsWith('Old')?window.__horseV167Builder.configs:window.__horseV171Contact.configs)[modeId],
        p=((frame/N-setupMode.touch[name])%1+1)%1,
        kind=name.startsWith('Fore')?'fore':'hind',
        stanceDuration=setupMode.stance[kind],
@@ -121,10 +117,10 @@ function run(onProgress){
      const u=Math.min(1,Math.max(0,p/stanceDuration)),a=.10,den=1-a;
      const relativeProgress=u<a?u*u/(2*a*den):u>1-a?1-(1-u)**2/(2*a*den):(u-a/2)/den;
      // A treadmill-relative proxy. NOT physical whole-horse displacement.
-     const correctedZ=z+setupMode.stride[kind]*relativeProgress;
+     const correctedZ=z+(key.endsWith('Old')?setupMode.stride[kind]*relativeProgress:setupMode.speed*setupMode.period*p),x=coords[config.contactVertex*3];
      f.minY=Math.min(f.minY,minY);f.maxY=Math.max(f.maxY,minY);
      f.worstPenetration=Math.max(f.worstPenetration,Math.max(0,setup.ground-minY));
-     if(phase.stance){f.stanceSamples++;f.maxStanceVerticalError=Math.max(f.maxStanceVerticalError,Math.abs(minY-setup.ground));
+     if(phase.stance){f.minAnchorZ=Math.min(f.minAnchorZ,correctedZ);f.maxAnchorZ=Math.max(f.maxAnchorZ,correctedZ);f.minAnchorX=Math.min(f.minAnchorX,x);f.maxAnchorX=Math.max(f.maxAnchorX,x);f.stanceSamples++;f.maxStanceVerticalError=Math.max(f.maxStanceVerticalError,Math.abs(minY-setup.ground));
        if(f.samples.length){const prev=f.samples.at(-1);if(prev.frame===frame-1&&prev.stance){
         f.maxStanceHorizontalDelta=Math.max(f.maxStanceHorizontalDelta,Math.abs(z-prev.z));
         f.maxCorrectedStanceSlip=Math.max(f.maxCorrectedStanceSlip,Math.abs(correctedZ-prev.correctedZ));
@@ -144,12 +140,13 @@ function run(onProgress){
      worstPenetration:f.worstPenetration,worstToePenetration:f.worstToePenetration,
       worstHeelPenetration:f.worstHeelPenetration,maxToeHeelHeightDifference:f.maxToeHeelHeightDifference,
       maxStanceVerticalError:f.maxStanceVerticalError,
-     maxStanceHorizontalDeltaPerFrame:f.maxStanceHorizontalDelta,maxTravelCorrectedStanceSlip:f.maxCorrectedStanceSlip,stanceSamples:f.stanceSamples,nearGround:f.nearGround,
+     maxStanceHorizontalDeltaPerFrame:f.maxStanceHorizontalDelta,maxTravelCorrectedStanceSlip:Math.hypot(f.maxAnchorZ-f.minAnchorZ,f.maxAnchorX-f.minAnchorX),maxPerFrameSlip:f.maxCorrectedStanceSlip,stanceSamples:f.stanceSamples,nearGround:f.nearGround,
      sampleFrames:f.samples.filter(x=>x.frame%20===0),allFrames:f.samples}]))}]));
-   state.result={framesPerClip:N,candidateSamples:4*N,totalSkinSamples:8*N,bodyVertices:24314,edgeCohorts:{fore:3107,hind:2932},
+   state.result={framesPerClip:N,candidateSamples:4*N,totalSkinSamples:8*N,bodyVertices:24314,edgeCohorts:{fore:setup.edges.fore.length,hind:setup.edges.hind.length},
     modes:summary,sourceGLBIntact:true,
     physicalContactProven:false,gpuVisualVerified:false,bodyPitchRollYaw:'Existing Torso rotations included in CPU skinning',referenceState:'Each gait uses its own reference contact phases; not calibrated locomotion data'};
-   state.status='finished';window.__horseV171.geometryQA=true;resolve(state.result);
+   state.result.numericPassed=['walk','cruise','fast','sprint'].every(m=>{const v=summary[m];return Math.max(v.edge.fore.max,v.edge.hind.max)<=1.2&&Object.values(v.feet).every(f=>f.worstPenetration<=.005&&f.maxStanceVerticalError<=.005&&f.maxTravelCorrectedStanceSlip<=.015);});
+   state.status='finished';window.__horseV171.geometryQA=state.result.numericPassed;resolve(state.result);
   }catch(e){state.status='error';state.error=String(e?.message||e);reject(e);}}
   setTimeout(tick,0);
  });
