@@ -1,7 +1,7 @@
 name: V17.1 public website actual Chrome smoke
 on:
   push:
-    branches: [v17-1-anatomical-gait-rebuild]
+    branches: [v17-1-anatomical-gait-rebuild, work/v171-game-ready-motion-20261027]
     paths: ['v17-1-preview/site-smoke.cjs','.github/workflows/v171-site-smoke.yml']
   workflow_dispatch:
 permissions:
@@ -16,5 +16,7 @@ jobs:
           node-version: '22'
       - run: npm install --no-save playwright@1.56.1
       - run: npx playwright install --with-deps chromium
-      - name: Verify full V17 site, model, all motion buttons
+      - name: Verify separate game-ready preview, original model and all four gaits
+        env:
+          SITE_URL: https://dfdfewqk.github.io/HORSE-3d-project/game-motion-preview/v17-1-preview/
         run: node v17-1-preview/site-smoke.cjs
