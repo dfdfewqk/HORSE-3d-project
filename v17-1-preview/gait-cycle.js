@@ -171,7 +171,8 @@ function phaseTimeline(mode,config,geom){
  * These positions are desired constraints, not fabricated contacts.
  */
 function hoofTrajectory(timeline,geom){
- const lift={walk:.055,cruise:.083,fast:.095,sprint:.105}[timeline.mode];
+ // Game silhouette: a relaxed low Walk swing; higher flight only when running.
+ const lift={walk:.045,cruise:.082,fast:.099,sprint:.110}[timeline.mode];
  const targets={};
  for(const leg of FEET){
   targets[leg]=timeline.states[leg].map(t=>{
@@ -191,20 +192,33 @@ function cloneFrames(frames){
  * not physical inverse dynamics and not per-frame independent IK.
  */
 function limbPrior(g,mode,frames,timeline,geom){
- const game={walk:{reach:1,fore:0,hind:0,hock:0,bob:.0015,pitch:.11,neck:.10,tail:.16},
-  cruise:{reach:.89,fore:2.7,hind:3.5,hock:-2.9,bob:.006,pitch:.46,neck:.25,tail:.42},
-  fast:{reach:.86,fore:3.1,hind:4.1,hock:-3.3,bob:.007,pitch:.54,neck:.31,tail:.50},
-  sprint:{reach:.84,fore:3.5,hind:4.7,hock:-3.6,bob:.008,pitch:.62,neck:.36,tail:.58}}[mode];
+ // Original 19-bone anatomy stays unchanged. These are modest game-style
+ // cues, not extra bones or claims about real racehorse joint angles.
+ const game={
+  walk:{reach:1,fore:0,hind:0,hock:0,kneeEase:.15,bob:.0015,pitch:.11,neck:.10,tail:.16,drive:0,style:'relaxed four-beat'},
+  cruise:{reach:.91,fore:2.4,hind:3.2,hock:-2.6,kneeEase:0,bob:.005,pitch:.40,neck:.24,tail:.38,drive:.0010,style:'smooth economical gallop'},
+  fast:{reach:.86,fore:3.3,hind:4.3,hock:-3.3,kneeEase:0,bob:.008,pitch:.61,neck:.34,tail:.56,drive:.0022,style:'strong leg drive'},
+  sprint:{reach:.82,fore:4.0,hind:5.1,hock:-4.0,kneeEase:0,bob:.011,pitch:.78,neck:.43,tail:.75,drive:.0035,style:'clear powerful sprint silhouette'}
+ }[mode];
  for(const leg of FEET){
   const ids=geom.chains[leg],fore=leg.startsWith('Fore'),root=ids[0];
   const angle=q=>2*Math.atan2(q[0],q[3]);
   const mean=frames.reduce((sum,p)=>sum+angle(p[root].q),0)/N;
+  // Use the leg's actual planted poses as the neutral knee angle. Walk
+  // softening must disappear at touchdown to preserve stance consistency.
+  const kneeStance=frames.reduce((sum,p,i)=>sum+(timeline.states[leg][i].stance?angle(p[ids[1]].q):0),0)/
+   Math.max(1,timeline.states[leg].filter(x=>x.stance).length);
   for(let i=0;i<N;i++){
    const p=frames[i],t=timeline.states[leg][i],
     swing=t.flight?Math.sin(PI*t.u)**2:0,
     cur=angle(p[root].q);
    p[root].q=qmultiply(p[root].q,xdelta(clamp((mean-cur)*(1-game.reach),-4*RAD,4*RAD)));
-   p[ids[1]].q=qmultiply(p[ids[1]].q,xdelta((fore?game.fore:game.hind)*RAD*swing));
+   const bend=(fore?game.fore:game.hind)*RAD*swing;
+   // Game Walk: a gentler fold at the fore-knee, never a rigid straight leg.
+   // A bounded 15% reduction only in the airborne half of the cycle.
+   const currentKnee=angle(p[ids[1]].q);
+   const relaxed=fore&&game.kneeEase?clamp(-game.kneeEase*Math.max(0,currentKnee-kneeStance),-5*RAD,0)*swing:0;
+   p[ids[1]].q=qmultiply(p[ids[1]].q,xdelta(bend+relaxed));
    if(!fore)p[ids[2]].q=qmultiply(p[ids[2]].q,xdelta(game.hock*RAD*swing));
   }
  }
@@ -227,10 +241,14 @@ function bodyFromSupport(g,mode,frames,timeline,geom,game){
  const hindWeights=timeline.states.HindL.map((_,i)=>
   timeline.states.HindL[i].weight+timeline.states.HindR[i].weight);
  const balance=circular(foreWeights.map((w,i)=>(w-hindWeights[i])*.5),8,3.5);
+ // Drive is tied to the hind-foot support pulse, not an arbitrary fast sine.
+ const hindDrive=circular(hindWeights.map((h,i)=>clamp(h-.25*foreWeights[i],0,2)),7,3);
+ const avgDrive=hindDrive.reduce((a,b)=>a+b,0)/N;
  for(let i=0;i<N;i++){
   const p=frames[i],theta=TAU*i/N;
-  p[geom.torso].t[1]+=root[i]+game.bob*(.5+.5*Math.sin(theta-.75));
-  const pitch=game.pitch*(balance[i]+.20*Math.sin(theta-.9))*RAD;
+  p[geom.torso].t[1]+=root[i]+game.bob*(.5+.5*Math.sin(theta-.75))+
+   game.drive*(hindDrive[i]-avgDrive);
+  const pitch=game.pitch*(balance[i]+.16*Math.sin(theta-.9))*RAD;
   p[geom.torso].q=qmultiply(p[geom.torso].q,xdelta(pitch));
   p[geom.neck].q=qmultiply(p[geom.neck].q,xdelta(-game.neck*RAD*balance[i]));
   p[geom.head].q=qmultiply(p[geom.head].q,
@@ -382,6 +400,7 @@ function bake(g,mode,builder,geom){
   selectedIKScales:fit.selectedScales,
   maxTorsoLiftMm:body.maxTorsoLiftMm,...smooth,
   visualPolicy:body.visualPolicy,gaitPolish:gameMotion,
+  gameStyle:game.style,gameStyleProfile:{kneeEase:game.kneeEase,drive:game.drive},
   originalModelPreserved:true,originalSkinPreserved:true,
   referenceJointCount:19,rigExtended:false,approved:false}};
 }
