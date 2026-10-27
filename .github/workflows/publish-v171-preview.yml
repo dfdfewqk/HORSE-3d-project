@@ -71,6 +71,25 @@ jobs:
           test -f v17-1-preview/gait-cycle.js
           echo "Released V17.1 remains under /v17-1-preview/"
           echo "Walk test candidate under /walk-contact-preview/v17-1-preview/"
+      - name: Check out isolated game-ready four-gait branch
+        uses: actions/checkout@v4
+        with:
+          ref: work/v171-game-ready-motion-20261027
+          path: __game_motion_source
+          persist-credentials: false
+      - name: Install separate game-ready preview, preserving current and contact versions
+        run: |
+          set -euo pipefail
+          test -f __game_motion_source/legacy-v7.html
+          test -f __game_motion_source/v17-1-preview/index.html
+          grep -q 'relaxed four-beat' __game_motion_source/v17-1-preview/gait-cycle.js
+          mkdir -p game-motion-preview
+          cp -a __game_motion_source/. game-motion-preview/
+          rm -rf game-motion-preview/.git game-motion-preview/.github __game_motion_source
+          test -f game-motion-preview/v17-1-preview/automated-qa.cjs
+          test -f walk-contact-preview/v17-1-preview/index.html
+          test -f v17-1-preview/index.html
+          echo "Experimental game-ready preview: /game-motion-preview/v17-1-preview/"
       - name: Upload real GLB viewer and animation assets
         uses: actions/upload-pages-artifact@v3
         with:
@@ -95,3 +114,4 @@ jobs:
         run: |
           echo "Current release: ${{ steps.deployment.outputs.page_url }}v17-1-preview/"
           echo "Separate Walk test: ${{ steps.deployment.outputs.page_url }}walk-contact-preview/v17-1-preview/"
+          echo "Separate game motion: ${{ steps.deployment.outputs.page_url }}game-motion-preview/v17-1-preview/"
