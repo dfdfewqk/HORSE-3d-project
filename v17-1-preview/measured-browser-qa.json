@@ -1,0 +1,754 @@
+{
+  "status": "RUNTIME_PASS",
+  "errors": [],
+  "transitions": [
+    {
+      "from": "walk",
+      "to": "cruise",
+      "phase": 0.05,
+      "startJumpMm": 5.389157964038493e-13,
+      "maxStepDeg": 15.062477974681892,
+      "worstStep": {
+        "frame": 32,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "cruise",
+      "phase": 0.3,
+      "startJumpMm": 4.742874840267547e-13,
+      "maxStepDeg": 14.486465669649624,
+      "worstStep": {
+        "frame": 51,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "cruise",
+      "phase": 0.6,
+      "startJumpMm": 4.742874840267547e-13,
+      "maxStepDeg": 14.869539863954842,
+      "worstStep": {
+        "frame": 30,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "cruise",
+      "phase": 0.9,
+      "startJumpMm": 4.577566798522238e-13,
+      "maxStepDeg": 14.258587873901787,
+      "worstStep": {
+        "frame": 48,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "fast",
+      "phase": 0.05,
+      "startJumpMm": 5.389157964038493e-13,
+      "maxStepDeg": 16.15280728444859,
+      "worstStep": {
+        "frame": 33,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "fast",
+      "phase": 0.3,
+      "startJumpMm": 4.742874840267547e-13,
+      "maxStepDeg": 16.500938677502656,
+      "worstStep": {
+        "frame": 51,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "fast",
+      "phase": 0.6,
+      "startJumpMm": 4.742874840267547e-13,
+      "maxStepDeg": 16.404017620493654,
+      "worstStep": {
+        "frame": 50,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "fast",
+      "phase": 0.9,
+      "startJumpMm": 4.577566798522238e-13,
+      "maxStepDeg": 16.76285554739867,
+      "worstStep": {
+        "frame": 40,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "sprint",
+      "phase": 0.05,
+      "startJumpMm": 5.389157964038493e-13,
+      "maxStepDeg": 17.1887338539249,
+      "worstStep": {
+        "frame": 31,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "sprint",
+      "phase": 0.3,
+      "startJumpMm": 4.742874840267547e-13,
+      "maxStepDeg": 17.18873385392456,
+      "worstStep": {
+        "frame": 47,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "sprint",
+      "phase": 0.6,
+      "startJumpMm": 4.742874840267547e-13,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 55,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "walk",
+      "to": "sprint",
+      "phase": 0.9,
+      "startJumpMm": 4.577566798522238e-13,
+      "maxStepDeg": 17.188733853924816,
+      "worstStep": {
+        "frame": 41,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "walk",
+      "phase": 0.05,
+      "startJumpMm": 4.965068306494546e-13,
+      "maxStepDeg": 14.289635417790144,
+      "worstStep": {
+        "frame": 5,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "walk",
+      "phase": 0.3,
+      "startJumpMm": 2.220446049250313e-13,
+      "maxStepDeg": 16.760117200209407,
+      "worstStep": {
+        "frame": 36,
+        "leg": "HindR",
+        "joint": 16
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "walk",
+      "phase": 0.6,
+      "startJumpMm": 9.485749680535094e-13,
+      "maxStepDeg": 17.188733853924816,
+      "worstStep": {
+        "frame": 43,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "walk",
+      "phase": 0.9,
+      "startJumpMm": 9.155133597044475e-13,
+      "maxStepDeg": 12.739026075868678,
+      "worstStep": {
+        "frame": 49,
+        "leg": "HindR",
+        "joint": 17
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "fast",
+      "phase": 0.05,
+      "startJumpMm": 4.965068306494546e-13,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 10,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "fast",
+      "phase": 0.3,
+      "startJumpMm": 2.220446049250313e-13,
+      "maxStepDeg": 17.005214841629407,
+      "worstStep": {
+        "frame": 58,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "fast",
+      "phase": 0.6,
+      "startJumpMm": 9.485749680535094e-13,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 50,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "fast",
+      "phase": 0.9,
+      "startJumpMm": 9.155133597044475e-13,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 14,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "sprint",
+      "phase": 0.05,
+      "startJumpMm": 4.965068306494546e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 16,
+        "leg": "HindR",
+        "joint": 17
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "sprint",
+      "phase": 0.3,
+      "startJumpMm": 2.220446049250313e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 53,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "sprint",
+      "phase": 0.6,
+      "startJumpMm": 9.485749680535094e-13,
+      "maxStepDeg": 17.1887338539249,
+      "worstStep": {
+        "frame": 45,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "cruise",
+      "to": "sprint",
+      "phase": 0.9,
+      "startJumpMm": 9.155133597044475e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 13,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "walk",
+      "phase": 0.05,
+      "startJumpMm": 8.950904182623619e-13,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 4,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "walk",
+      "phase": 0.3,
+      "startJumpMm": 4.965068306494546e-13,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 3,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "walk",
+      "phase": 0.6,
+      "startJumpMm": 8.881784197001252e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 51,
+        "leg": "ForeL",
+        "joint": 6
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "walk",
+      "phase": 0.9,
+      "startJumpMm": 8.881784197001252e-13,
+      "maxStepDeg": 14.456400943848497,
+      "worstStep": {
+        "frame": 8,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "cruise",
+      "phase": 0.05,
+      "startJumpMm": 8.950904182623619e-13,
+      "maxStepDeg": 16.500296956918813,
+      "worstStep": {
+        "frame": 4,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "cruise",
+      "phase": 0.3,
+      "startJumpMm": 4.965068306494546e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 3,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "cruise",
+      "phase": 0.6,
+      "startJumpMm": 8.881784197001252e-13,
+      "maxStepDeg": 15.177933524533564,
+      "worstStep": {
+        "frame": 54,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "cruise",
+      "phase": 0.9,
+      "startJumpMm": 8.881784197001252e-13,
+      "maxStepDeg": 14.472057393945393,
+      "worstStep": {
+        "frame": 40,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "sprint",
+      "phase": 0.05,
+      "startJumpMm": 8.950904182623619e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 9,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "sprint",
+      "phase": 0.3,
+      "startJumpMm": 4.965068306494546e-13,
+      "maxStepDeg": 17.188733853924816,
+      "worstStep": {
+        "frame": 53,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "sprint",
+      "phase": 0.6,
+      "startJumpMm": 8.881784197001252e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 15,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "fast",
+      "to": "sprint",
+      "phase": 0.9,
+      "startJumpMm": 8.881784197001252e-13,
+      "maxStepDeg": 17.188733853924816,
+      "worstStep": {
+        "frame": 13,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "walk",
+      "phase": 0.05,
+      "startJumpMm": 6.2803698347351e-13,
+      "maxStepDeg": 16.784670391835796,
+      "worstStep": {
+        "frame": 3,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "walk",
+      "phase": 0.3,
+      "startJumpMm": 0,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 1,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "walk",
+      "phase": 0.6,
+      "startJumpMm": 2.220446049250313e-13,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 51,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "walk",
+      "phase": 0.9,
+      "startJumpMm": 9.930136612989092e-13,
+      "maxStepDeg": 16.38538460474149,
+      "worstStep": {
+        "frame": 7,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "cruise",
+      "phase": 0.05,
+      "startJumpMm": 6.2803698347351e-13,
+      "maxStepDeg": 16.356231750986932,
+      "worstStep": {
+        "frame": 3,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "cruise",
+      "phase": 0.3,
+      "startJumpMm": 0,
+      "maxStepDeg": 17.188733853924816,
+      "worstStep": {
+        "frame": 20,
+        "leg": "ForeR",
+        "joint": 13
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "cruise",
+      "phase": 0.6,
+      "startJumpMm": 2.220446049250313e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 14,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "cruise",
+      "phase": 0.9,
+      "startJumpMm": 9.930136612989092e-13,
+      "maxStepDeg": 14.472057393942869,
+      "worstStep": {
+        "frame": 40,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "fast",
+      "phase": 0.05,
+      "startJumpMm": 6.2803698347351e-13,
+      "maxStepDeg": 17.188733853924646,
+      "worstStep": {
+        "frame": 9,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "fast",
+      "phase": 0.3,
+      "startJumpMm": 0,
+      "maxStepDeg": 17.188733853924816,
+      "worstStep": {
+        "frame": 21,
+        "leg": "ForeR",
+        "joint": 12
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "fast",
+      "phase": 0.6,
+      "startJumpMm": 2.220446049250313e-13,
+      "maxStepDeg": 17.18873385392473,
+      "worstStep": {
+        "frame": 14,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    },
+    {
+      "from": "sprint",
+      "to": "fast",
+      "phase": 0.9,
+      "startJumpMm": 9.930136612989092e-13,
+      "maxStepDeg": 16.739545116956585,
+      "worstStep": {
+        "frame": 40,
+        "leg": "ForeL",
+        "joint": 5
+      },
+      "maxPenetrationMm": 0
+    }
+  ],
+  "numericStatus": "NOT_MEASURED",
+  "runtime": {
+    "results": {
+      "walk": {
+        "index": 32,
+        "mode": "walk",
+        "method": "world-anchor-skinned-contact-IK",
+        "period": 1.44,
+        "phasePhases": 160,
+        "contactFootIds": [
+          "HindR",
+          "ForeR",
+          "HindL",
+          "ForeL"
+        ],
+        "referenceJointCount": 19,
+        "originalSkinPreserved": true,
+        "rigExtended": false,
+        "aerialIntervals": [],
+        "maxTargetResidualMm": 0.4998908128263555,
+        "approved": false,
+        "maxStep": 2.2606260884195426,
+        "sampledSkin": 1.315192407859909
+      },
+      "cruise": {
+        "index": 33,
+        "mode": "cruise",
+        "method": "world-anchor-skinned-contact-IK",
+        "period": 0.51,
+        "phasePhases": 160,
+        "contactFootIds": [
+          "HindR",
+          "ForeR",
+          "HindL",
+          "ForeL"
+        ],
+        "referenceJointCount": 19,
+        "originalSkinPreserved": true,
+        "rigExtended": false,
+        "aerialIntervals": [
+          [
+            0.8,
+            1
+          ]
+        ],
+        "maxTargetResidualMm": 1.9247457756804154,
+        "approved": false,
+        "maxStep": 3.211809106333665,
+        "sampledSkin": 1.360864386369386
+      },
+      "fast": {
+        "index": 34,
+        "mode": "fast",
+        "method": "world-anchor-skinned-contact-IK",
+        "period": 0.46,
+        "phasePhases": 160,
+        "contactFootIds": [
+          "HindR",
+          "ForeR",
+          "HindL",
+          "ForeL"
+        ],
+        "referenceJointCount": 19,
+        "originalSkinPreserved": true,
+        "rigExtended": false,
+        "aerialIntervals": [
+          [
+            0.7549999999999999,
+            1
+          ]
+        ],
+        "maxTargetResidualMm": 3.6098005014932477,
+        "approved": false,
+        "maxStep": 3.7345615880474554,
+        "sampledSkin": 1.397106400328148
+      },
+      "sprint": {
+        "index": 35,
+        "mode": "sprint",
+        "method": "world-anchor-skinned-contact-IK",
+        "period": 0.42,
+        "phasePhases": 160,
+        "contactFootIds": [
+          "HindR",
+          "ForeR",
+          "HindL",
+          "ForeL"
+        ],
+        "referenceJointCount": 19,
+        "originalSkinPreserved": true,
+        "rigExtended": false,
+        "aerialIntervals": [
+          [
+            0.7050000000000001,
+            1
+          ]
+        ],
+        "maxTargetResidualMm": 3.88192126844075,
+        "approved": false,
+        "maxStep": 4.417030306973118,
+        "sampledSkin": 1.4278819175529935
+      }
+    }
+  },
+  "temporal": {
+    "walk": {
+      "maxStepAt640": 0.565148763980448,
+      "closingKey": true
+    },
+    "cruise": {
+      "maxStepAt640": 0.8029643630570795,
+      "closingKey": true
+    },
+    "fast": {
+      "maxStepAt640": 0.9336886132579034,
+      "closingKey": true
+    },
+    "sprint": {
+      "maxStepAt640": 1.1043577269156857,
+      "closingKey": true
+    }
+  },
+  "transitionPassed": true,
+  "measurementScope": "48 transitions, 60 frames each at 60 Hz; cyclic skin acceptance is separate"
+}

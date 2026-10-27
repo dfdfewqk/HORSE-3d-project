@@ -1,0 +1,152 @@
+{
+  "scope": "CPU skinned cached cyclic clips; not live transition acceptance",
+  "cacheSha256": "133b598f5f41ceb818095c5e051ebade3d722c8744dfe8c6d0e5938f7231d24a",
+  "skinRequirement": 1.2,
+  "numericPassed": false,
+  "modes": {
+    "walk": {
+      "skinEdges": {
+        "fore": {
+          "max": 1.4756162513593511,
+          "p99": 1.328097723583765,
+          "above1_5": 0
+        },
+        "hind": {
+          "max": 1.3085497088058151,
+          "p99": 1.096436031221432,
+          "above1_5": 0
+        }
+      },
+      "feet": {
+        "HindR": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 9.131713867205349e-05,
+          "maxStanceVerticalError": 0.0023182741133496165
+        },
+        "ForeR": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 9.743972778331056e-05,
+          "maxStanceVerticalError": 0.002128377789631486
+        },
+        "HindL": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 9.131713867205349e-05,
+          "maxStanceVerticalError": 0.0022957425098866224
+        },
+        "ForeL": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 9.891242980963888e-05,
+          "maxStanceVerticalError": 0.0021321485401131213
+        }
+      }
+    },
+    "cruise": {
+      "skinEdges": {
+        "fore": {
+          "max": 1.5506198101995792,
+          "p99": 1.3666446671069772,
+          "above1_5": 3
+        },
+        "hind": {
+          "max": 1.3705236162281904,
+          "p99": 1.15691472708821,
+          "above1_5": 0
+        }
+      },
+      "feet": {
+        "HindR": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.00043429374694792244,
+          "maxStanceVerticalError": 0.0024737255298532546
+        },
+        "ForeR": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.00039545059204115773,
+          "maxStanceVerticalError": 0.00233929802197963
+        },
+        "HindL": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.0003230571746826172,
+          "maxStanceVerticalError": 0.0024361982941627502
+        },
+        "ForeL": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.00045220375061050255,
+          "maxStanceVerticalError": 0.0021794745116494596
+        }
+      }
+    },
+    "fast": {
+      "skinEdges": {
+        "fore": {
+          "max": 1.6102581980125508,
+          "p99": 1.3998650686602632,
+          "above1_5": 9
+        },
+        "hind": {
+          "max": 1.4184978427287187,
+          "p99": 1.230861125069172,
+          "above1_5": 0
+        }
+      },
+      "feet": {
+        "HindR": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.000536141967773851,
+          "maxStanceVerticalError": 0.002259089204017073
+        },
+        "ForeR": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.00067986602783221,
+          "maxStanceVerticalError": 0.0022181679378263652
+        },
+        "HindL": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.00048381385803208943,
+          "maxStanceVerticalError": 0.00273330754134804
+        },
+        "ForeL": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.0007115459442139649,
+          "maxStanceVerticalError": 0.0022493578726425767
+        }
+      }
+    },
+    "sprint": {
+      "skinEdges": {
+        "fore": {
+          "max": 1.6630141483561134,
+          "p99": 1.431648101338547,
+          "above1_5": 20
+        },
+        "hind": {
+          "max": 1.4645874842562874,
+          "p99": 1.322116856988652,
+          "above1_5": 0
+        }
+      },
+      "feet": {
+        "HindR": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.0006515968322755583,
+          "maxStanceVerticalError": 0.0022424738272093236
+        },
+        "ForeR": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.0007294857025144097,
+          "maxStanceVerticalError": 0.002291183569468558
+        },
+        "HindL": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.00061599845886251,
+          "maxStanceVerticalError": 0.0027667847461998463
+        },
+        "ForeL": {
+          "worstPenetration": 0,
+          "maxTravelCorrectedStanceSlip": 0.0007376365661619921,
+          "maxStanceVerticalError": 0.0023081335821188986
+        }
+      }
+    }
+  }
+}

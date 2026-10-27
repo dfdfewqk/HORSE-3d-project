@@ -61,7 +61,7 @@ button:disabled{cursor:wait;opacity:.45}
 <details id="detail" hidden>
  <summary>V17.1 검증 · 실험 상태</summary>
  <p>현재 관절 19개, 독립 발굽 관절 없음. 피부·지지발 미끄러짐 수치 검사 미통과. 정식 애니메이션 아님.</p>
- <button id="auditButton" disabled>V17.1 실제 GLB 1280프레임 검사</button>
+ <button id="auditButton" disabled>V17.1 실제 GLB 5120프레임 검사</button>
  <pre id="auditOutput">검사 미실행</pre>
 </details>
 <div id="error" role="alert"></div>
@@ -86,7 +86,7 @@ outer.addEventListener('load',()=>{
  if(!d||!w)return error('3D 원본 뷰어에 접근할 수 없습니다');
  // Historical legacy controls are internal and no longer offered to users.
  const hide=d.createElement('style');
- hide.textContent='#animations,#speed,#play{visibility:hidden!important;pointer-events:none!important}';
+ hide.textContent='#header,#note,#meta,#loadFile,#panel{display:none!important}';
  d.head.appendChild(hide);
  const paths=[
      "../v14-preview/horse-gaits-runtime.js",
@@ -137,6 +137,7 @@ outer.addEventListener('load',()=>{
      "../v16-6-walk-preview/walk-motion.js",
      "../v16-7-full-gait-preview/gait-builder.js",
      "../v16-7-full-gait-preview/gait-runtime.js",
+     "./contact-model.js",
      "./viewer-bridge.js",
      "./gait-cycle.js",
      "./gait-audit.js"
@@ -175,7 +176,7 @@ outer.addEventListener('load',()=>{
    status.dataset.mode='v171';
    status.textContent='HORSE RANCH V17.1 | '+label+
     ' | '+(s.playing?'재생 중':'일시정지')+' | '+s.speed.toFixed(2)+'×'+
-    ' | 실험 클립 (수치·시각 검증 전 실험)';
+    ' | 개선 모션 · 검증 후보';
    playBtn.disabled=s.mode==='idle';
    playBtn.textContent=s.playing?'⏸ 일시정지':'▶ 재생';
    rate.disabled=false;rate.value=String(s.speed);
@@ -197,7 +198,7 @@ outer.addEventListener('load',()=>{
   audit.disabled=false;
   audit.onclick=async()=>{
    if(running)return;running=true;audit.disabled=true;
-   report.textContent='원본 GLB 1280프레임 확인 중…';
+   report.textContent='원본 GLB 5120프레임 확인 중…';
    try{
     const data=await w.__horseV171QA.run(p=>{report.textContent='검사 '+Math.round(p*100)+'%'});
     const max=(m,key)=>Math.max(...Object.values(m.feet).map(f=>f[key])),
@@ -208,15 +209,16 @@ outer.addEventListener('load',()=>{
       slide=max(s,'maxTravelCorrectedStanceSlip'),edge=stretch(s);
      rows.push(mode+': 관통 '+(1000*pen).toFixed(1)+'mm · 지지발 편차 '+
       (1000*slide).toFixed(1)+'mm · 피부 신장 '+edge.toFixed(3)+'배');
-     if(pen>.005||slide>.015||edge>1.2)bad.push(mode);
+     if(pen>.005||slide>.015||max(s,'maxStanceVerticalError')>.005||edge>1.2)bad.push(mode);
     }
     report.textContent=rows.join('\n')+'\n결과: '+(bad.length?'FAIL ('+bad.join(', ')+')':
-      '수치 목표 잠정 충족, 시각검증 필요');
+      '접지 수치 충족 여부 확인 완료, 시각검증 필요');
    }catch(e){report.textContent='검사 실패: '+String(e.message||e)}
    finally{running=false;audit.disabled=false}
   };
   // Enter only the newest Walk. Old gait previews are internal legacy data.
   perform(()=>bridge.choose('walk'));
+  cam.onchange();
   setInterval(()=>{if(outer.isConnected&&w.__viewerReady)try{sync()}catch(e){error(e.message||e)}},240);
  },100);
 });
