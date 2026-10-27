@@ -1,7 +1,7 @@
 name: V17.1 actual GLB 4-gait QA
 on:
   push:
-    branches: [v17-1-anatomical-gait-rebuild]
+    branches: [v17-1-anatomical-gait-rebuild, work/v171-game-ready-motion-20261027]
   workflow_dispatch:
 permissions:
   contents: read
