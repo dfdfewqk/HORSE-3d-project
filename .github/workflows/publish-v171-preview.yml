@@ -49,6 +49,28 @@ jobs:
           grep -q 'function solveLimbs' v17-1-preview/gait-cycle.js
           grep -q 'function bodyFromSupport' v17-1-preview/gait-cycle.js
           grep -q 'phase-foot-trajectory-coordinated-IK-body-validation' v17-1-preview/gait-cycle.js
+      - name: Check out Walk contact IK candidate separately
+        uses: actions/checkout@v4
+        with:
+          ref: work/v171-contact-ik-20261026
+          path: __walk_contact_source
+          persist-credentials: false
+      - name: Add isolated candidate browser preview without modifying released V17.1
+        run: |
+          set -euo pipefail
+          test -f __walk_contact_source/legacy-v7.html
+          test -f __walk_contact_source/v17-1-preview/contact-model.js
+          test -f __walk_contact_source/v17-1-preview/contact-clips.json
+          test -f __walk_contact_source/v17-1-preview/index.html
+          mkdir -p walk-contact-preview
+          cp -a __walk_contact_source/. walk-contact-preview/
+          rm -rf walk-contact-preview/.git walk-contact-preview/.github
+          rm -rf __walk_contact_source
+          test -f walk-contact-preview/v17-1-preview/contact-clips.json
+          test -f walk-contact-preview/v17-1-preview/gait-cycle.js
+          test -f v17-1-preview/gait-cycle.js
+          echo "Released V17.1 remains under /v17-1-preview/"
+          echo "Walk test candidate under /walk-contact-preview/v17-1-preview/"
       - name: Upload real GLB viewer and animation assets
         uses: actions/upload-pages-artifact@v3
         with:
@@ -69,5 +91,7 @@ jobs:
         uses: actions/deploy-pages@v4
         with:
           artifact_name: v171-pages-${{ github.run_id }}-${{ github.run_attempt }}
-      - name: Preview URL
-        run: echo "Site -> ${{ steps.deployment.outputs.page_url }}v17-1-preview/"
+      - name: Preview URLs
+        run: |
+          echo "Current release: ${{ steps.deployment.outputs.page_url }}v17-1-preview/"
+          echo "Separate Walk test: ${{ steps.deployment.outputs.page_url }}walk-contact-preview/v17-1-preview/"
